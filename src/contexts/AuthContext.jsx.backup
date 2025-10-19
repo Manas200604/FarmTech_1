@@ -1,0 +1,180 @@
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  sendPasswordResetEmail
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { auth, db, googleProvider } from '../firebase/config';
+import toast from 'react-hot-toast';
+
+const AuthContext = createContext();
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+export const AuthProvider = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const login = async (email, password) => {
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      await updateDoc(doc(db, 'users', result.user.uid), {
+        lastLogin: Timestamp.now()
+      });
+      toast.success('Successfully logged in!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to login');
+      throw error;
+    }
+  };
+
+  const register = async (email, password, userData) => {
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+
+      const newUser = {
+        id: result.user.uid,
+        email,
+        name: userData.name || '',
+        phone: userData.phone,
+        role: userData.role || 'farmer',
+        farmDetails: userData.farmDetails,
+        createdAt: Timestamp.now(),
+        lastLogin: Timestamp.now(),
+        isActive: true
+      };
+
+      await setDoc(doc(db, 'users', result.user.uid), newUser);
+      toast.success('Account created successfully!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to create account');
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setUserProfile(null);
+      toast.success('Successfully logged out!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to logout');
+      throw error;
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      // Check if user exists in Firestore
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      
+      if (!userDoc.exists()) {
+        // Create new user profile
+        const newUser = {
+          id: user.uid,
+          email: user.email,
+          name: user.displayName || '',
+          role: 'farmer', // Default role for Google sign-in
+          createdAt: Timestamp.now(),
+          lastLogin: Timestamp.now(),
+          isActive: true
+        };
+        await setDoc(doc(db, 'users', user.uid), newUser);
+      } else {
+        // Update last login
+        await updateDoc(doc(db, 'users', user.uid), {
+          lastLogin: Timestamp.now()
+        });
+      }
+      
+      toast.success('Successfully signed in with Google!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to sign in with Google');
+      throw error;
+    }
+  };
+
+  const resetPassword = async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success('Password reset email sent!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to send reset email');
+      throw error;
+    }
+  };
+
+  const updateUserProfile = async (data) => {
+    if (!currentUser) throw new Error('No user logged in');
+
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        ...data,
+        lastUpdated: Timestamp.now()
+      });
+
+      if (userProfile) {
+        setUserProfile({ ...userProfile, ...data });
+      }
+      toast.success('Profile updated successfully!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to update profile');
+      throw error;
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            setUserProfile(userDoc.data());
+          }
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+        }
+      } else {
+        setUserProfile(null);
+      }
+
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const value = {
+    currentUser,
+    userProfile,
+    loading,
+    login,
+    loginWithGoogle,
+    register,
+    logout,
+    resetPassword,
+    updateUserProfile
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
+};
