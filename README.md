@@ -1,9 +1,30 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # FarmTech
 =======
 # FarmTech - Agricultural Management Platform
+=======
+# 🌾 FarmTech - Agricultural Management Platform
+>>>>>>> b4d6455 ( FarmTech v1.0.0 - Complete Agricultural Management Platform)
 
-A modern web application built with React and Firebase to empower farmers with digital tools and real-time insights.
+[![React](https://img.shields.io/badge/React-18-blue)](https://reactjs.org/)
+[![Firebase](https://img.shields.io/badge/Firebase-10-orange)](https://firebase.google.com/)
+[![Tailwind](https://img.shields.io/badge/Tailwind-3.3-cyan)](https://tailwindcss.com/)
+[![Vite](https://img.shields.io/badge/Vite-5.0-purple)](https://vitejs.dev/)
+
+A modern, responsive web application built with React and Firebase to empower farmers with digital tools and real-time insights. Connect farmers with agricultural experts, government schemes, and treatment recommendations.
+
+## 🎯 Live Demo
+
+**Try the application with these demo accounts:**
+
+👨‍🌾 **Farmer Account:**
+- Email: `farmer@farmtech.com`
+- Password: `farmer123456`
+
+👨‍💼 **Admin Account:**
+- Email: `admin@farmtech.com`  
+- Password: `admin123456`
 
 ## 🌟 Features
 
