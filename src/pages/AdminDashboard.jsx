@@ -1,29 +1,53 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/FastAuthContext';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import SeedData from '../components/admin/SeedData';
-import ExpertManager from '../components/admin/ExpertManager';
-import InquiryManager from '../components/admin/InquiryManager';
+import SchemeManager from '../components/admin/SchemeManager';
+import ContactManager from '../components/admin/ContactManager';
+import UploadManager from '../components/admin/UploadManager';
 import { 
   Users, 
   Upload, 
   FileText, 
   Settings,
-  Eye,
   Check,
   X,
   Search,
   Filter,
   TrendingUp,
   Calendar,
-  MessageSquare
+  Shield,
+  AlertTriangle
 } from 'lucide-react';
 import { supabase } from '../supabase/client';
 import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
+  const { userProfile, isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Role verification - redirect if not admin
+  if (!isAdmin()) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Card className="max-w-md w-full">
+          <CardContent className="text-center p-8">
+            <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+            <p className="text-gray-600 mb-4">
+              You need administrator privileges to access this page.
+            </p>
+            <Button onClick={() => window.history.back()}>
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   const [uploads, setUploads] = useState([]);
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({
@@ -63,20 +87,27 @@ const AdminDashboard = () => {
         const [
           { count: totalUsers },
           { count: totalUploads },
-          { count: pendingReviews },
           { count: totalSchemes }
         ] = await Promise.all([
           supabase.from('users').select('*', { count: 'exact', head: true }),
           supabase.from('uploads').select('*', { count: 'exact', head: true }),
-          supabase.from('uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabase.from('schemes').select('*', { count: 'exact', head: true })
         ]);
 
+        // Try to get stats data, but don't fail if it doesn't work
+        let statsData = null;
+        try {
+          const { data } = await supabase.from('stats').select('*').limit(1).single();
+          statsData = data;
+        } catch (statsError) {
+          console.log('Stats table not accessible, using calculated values');
+        }
+
         setStats({
-          totalUsers: totalUsers || 0,
-          totalUploads: totalUploads || 0,
-          pendingReviews: pendingReviews || 0,
-          totalSchemes: totalSchemes || 0
+          totalUsers: statsData?.total_users || totalUsers || 0,
+          totalUploads: statsData?.total_uploads || totalUploads || 0,
+          pendingReviews: 0, // We don't have upload status in current schema
+          totalSchemes: statsData?.total_schemes || totalSchemes || 0
         });
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -107,16 +138,13 @@ const AdminDashboard = () => {
       const { error } = await supabase
         .from('uploads')
         .update({
-          status,
-          admin_feedback: adminFeedback,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: 'admin' // In a real app, use actual admin ID
+          notes: adminFeedback
         })
         .eq('id', uploadId);
 
       if (error) throw error;
       
-      toast.success(`Upload ${status} successfully!`);
+      toast.success(`Upload reviewed successfully!`);
       setReviewModal(false);
       setSelectedUpload(null);
       setFeedback('');
@@ -127,10 +155,10 @@ const AdminDashboard = () => {
   };
 
   const filteredUploads = uploads.filter(upload => {
-    const matchesSearch = upload.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         upload.crop_type.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || upload.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesSearch = (upload.notes || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (upload.crop_type || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (upload.file_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch; // Remove status filter since we don't have status field
   });
 
   const formatDate = (timestamp) => {
@@ -161,19 +189,30 @@ const AdminDashboard = () => {
     { id: 'overview', name: 'Overview', icon: TrendingUp },
     { id: 'uploads', name: 'Uploads', icon: Upload },
     { id: 'users', name: 'Users', icon: Users },
-    { id: 'experts', name: 'Experts', icon: Users },
-    { id: 'inquiries', name: 'Material Requests', icon: MessageSquare },
-    { id: 'content', name: 'Content', icon: Settings }
+    { id: 'schemes', name: 'Manage Schemes', icon: FileText },
+    { id: 'contacts', name: 'Manage Contacts', icon: Users },
+    { id: 'content', name: 'Content Overview', icon: Settings }
   ];
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-lg p-6 text-white">
-        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-        <p className="text-primary-100 mt-1">
-          Manage users, review uploads, and oversee platform content
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+            <p className="text-primary-100 mt-1">
+              Manage users, review uploads, and oversee platform content
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Shield className="h-6 w-6 text-primary-200" />
+            <div className="text-right">
+              <p className="text-sm text-primary-100">Logged in as</p>
+              <p className="font-medium">{userProfile?.name || userProfile?.email}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Navigation Tabs */}
@@ -256,23 +295,24 @@ const AdminDashboard = () => {
           {/* Recent Activity */}
           <Card>
             <CardHeader>
-              <CardTitle>Recent Uploads Requiring Review</CardTitle>
+              <CardTitle>Recent Uploads</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {uploads.filter(upload => upload.status === 'pending').slice(0, 5).map((upload) => (
+                {uploads.slice(0, 5).map((upload) => (
                   <div key={upload.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center space-x-4">
-                      <img
-                        src={upload.imageUrl}
-                        alt={upload.description}
-                        className="w-12 h-12 object-cover rounded-lg"
-                      />
+                      <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                        <Upload className="h-6 w-6 text-gray-500" />
+                      </div>
                       <div>
-                        <h4 className="font-medium text-gray-900">{upload.description}</h4>
+                        <h4 className="font-medium text-gray-900">{upload.file_name}</h4>
                         <p className="text-sm text-gray-600">
-                          {upload.cropType} • {formatDate(upload.createdAt)}
+                          {upload.crop_type || 'Unknown crop'} • {formatDate(upload.created_at)}
                         </p>
+                        {upload.notes && (
+                          <p className="text-xs text-gray-500">{upload.notes}</p>
+                        )}
                       </div>
                     </div>
                     <Button
@@ -282,10 +322,13 @@ const AdminDashboard = () => {
                         setReviewModal(true);
                       }}
                     >
-                      Review
+                      View
                     </Button>
                   </div>
                 ))}
+                {uploads.length === 0 && (
+                  <p className="text-gray-500 text-center py-4">No uploads yet</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -294,91 +337,7 @@ const AdminDashboard = () => {
 
       {/* Uploads Tab */}
       {activeTab === 'uploads' && (
-        <div className="space-y-6">
-          {/* Filters */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search uploads..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Filter className="h-4 w-4 text-gray-400" />
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="reviewed">Reviewed</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Uploads List */}
-          <Card>
-            <CardHeader>
-              <CardTitle>All Uploads ({filteredUploads.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {filteredUploads.map((upload) => (
-                  <div key={upload.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center space-x-4">
-                      <img
-                        src={upload.imageUrl}
-                        alt={upload.description}
-                        className="w-16 h-16 object-cover rounded-lg"
-                      />
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">{upload.description}</h4>
-                        <p className="text-sm text-gray-600">
-                          Crop: {upload.cropType} • Location: {upload.location || 'N/A'}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Uploaded: {formatDate(upload.createdAt)}
-                        </p>
-                        {upload.adminFeedback && (
-                          <p className="text-sm text-blue-600 mt-1">
-                            Feedback: {upload.adminFeedback}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(upload.status)}`}>
-                        {upload.status.charAt(0).toUpperCase() + upload.status.slice(1)}
-                      </span>
-                      {upload.status === 'pending' && (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedUpload(upload);
-                            setReviewModal(true);
-                          }}
-                        >
-                          Review
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <UploadManager />
       )}
 
       {/* Users Tab */}
@@ -395,20 +354,10 @@ const AdminDashboard = () => {
                     <h4 className="font-medium text-gray-900">{user.name}</h4>
                     <p className="text-sm text-gray-600">{user.email}</p>
                     <p className="text-xs text-gray-500">
-                      Role: {user.role} • Joined: {formatDate(user.createdAt)}
+                      Role: {user.role} • Joined: {formatDate(user.created_at)}
                     </p>
-                    {user.farmDetails && (
-                      <p className="text-xs text-gray-500">
-                        Farm: {user.farmDetails.location} • Crops: {user.farmDetails.cropType?.join(', ')}
-                      </p>
-                    )}
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {user.isActive ? 'Active' : 'Inactive'}
-                    </span>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
                     }`}>
@@ -422,65 +371,90 @@ const AdminDashboard = () => {
         </Card>
       )}
 
-      {/* Experts Tab */}
-      {activeTab === 'experts' && (
-        <ExpertManager />
-      )}
 
-      {/* Material Requests Tab */}
-      {activeTab === 'inquiries' && (
-        <InquiryManager />
-      )}
 
       {/* Content Tab */}
       {activeTab === 'content' && (
         <div className="space-y-8">
-          {/* Database Seeding */}
-          <div className="mb-8">
-            <SeedData />
-          </div>
-          
+          {/* Content Management Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate('/schemes')}>
               <CardContent className="flex flex-col items-center p-6 text-center">
                 <FileText className="h-12 w-12 text-primary-600 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Manage Schemes</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">View Schemes</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Add, edit, or remove government schemes
+                  Browse all government schemes and programs
                 </p>
                 <Button className="w-full">
-                  Manage Schemes
+                  View Schemes
                 </Button>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate('/contacts')}>
               <CardContent className="flex flex-col items-center p-6 text-center">
                 <Users className="h-12 w-12 text-secondary-600 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Manage Contacts</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Expert Contacts</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Add or update specialist contacts
+                  View and contact agricultural specialists
                 </p>
                 <Button variant="secondary" className="w-full">
-                  Manage Contacts
+                  View Contacts
                 </Button>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate('/treatments')}>
               <CardContent className="flex flex-col items-center p-6 text-center">
                 <Settings className="h-12 w-12 text-accent-600 mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Treatments</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Manage pesticides and fertilizers
+                  Browse pesticides and fertilizers
                 </p>
                 <Button variant="outline" className="w-full">
-                  Manage Treatments
+                  View Treatments
                 </Button>
               </CardContent>
             </Card>
           </div>
+
+          {/* Quick Stats */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Content Statistics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary-600">{stats.totalSchemes}</div>
+                  <div className="text-sm text-gray-600">Government Schemes</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-secondary-600">15</div>
+                  <div className="text-sm text-gray-600">Expert Contacts</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-accent-600">3</div>
+                  <div className="text-sm text-gray-600">Treatment Types</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{stats.totalUsers}</div>
+                  <div className="text-sm text-gray-600">Total Users</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+      )}
+
+      {/* Schemes Management Tab */}
+      {activeTab === 'schemes' && (
+        <SchemeManager />
+      )}
+
+      {/* Contacts Management Tab */}
+      {activeTab === 'contacts' && (
+        <ContactManager />
       )}
 
       {/* Review Modal */}
@@ -502,52 +476,54 @@ const AdminDashboard = () => {
             </div>
 
             <div className="p-6 space-y-6">
-              <div>
-                <img
-                  src={selectedUpload.imageUrl}
-                  alt={selectedUpload.description}
-                  className="w-full h-64 object-cover rounded-lg"
-                />
+              <div className="bg-gray-100 rounded-lg p-4 text-center">
+                <Upload className="h-16 w-16 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-600">File preview not available</p>
               </div>
 
               <div>
                 <h3 className="font-medium text-gray-900 mb-2">Upload Details</h3>
                 <div className="space-y-2 text-sm">
-                  <p><strong>Description:</strong> {selectedUpload.description}</p>
-                  <p><strong>Crop Type:</strong> {selectedUpload.cropType}</p>
-                  <p><strong>Location:</strong> {selectedUpload.location || 'N/A'}</p>
-                  <p><strong>Uploaded:</strong> {formatDate(selectedUpload.createdAt)}</p>
+                  <p><strong>File Name:</strong> {selectedUpload.file_name}</p>
+                  <p><strong>Crop Type:</strong> {selectedUpload.crop_type || 'Not specified'}</p>
+                  <p><strong>File Size:</strong> {(selectedUpload.file_size / 1024 / 1024).toFixed(2)} MB</p>
+                  <p><strong>Uploaded:</strong> {formatDate(selectedUpload.created_at)}</p>
+                  {selectedUpload.notes && (
+                    <p><strong>Current Notes:</strong> {selectedUpload.notes}</p>
+                  )}
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Admin Feedback
+                  Admin Notes
                 </label>
                 <textarea
                   value={feedback}
                   onChange={(e) => setFeedback(e.target.value)}
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Provide feedback or advice for the farmer..."
+                  placeholder="Add notes or feedback for this upload..."
                 />
               </div>
 
               <div className="flex justify-end space-x-4 pt-4 border-t">
                 <Button
                   variant="outline"
-                  onClick={() => handleReviewUpload(selectedUpload.id, 'rejected', feedback)}
-                  className="flex items-center space-x-1"
+                  onClick={() => {
+                    setReviewModal(false);
+                    setSelectedUpload(null);
+                    setFeedback('');
+                  }}
                 >
-                  <X className="h-4 w-4" />
-                  <span>Reject</span>
+                  Cancel
                 </Button>
                 <Button
                   onClick={() => handleReviewUpload(selectedUpload.id, 'reviewed', feedback)}
                   className="flex items-center space-x-1"
                 >
                   <Check className="h-4 w-4" />
-                  <span>Approve</span>
+                  <span>Save Notes</span>
                 </Button>
               </div>
             </div>

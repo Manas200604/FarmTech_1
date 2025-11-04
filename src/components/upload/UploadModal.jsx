@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react';
-import { useAuth } from '../../contexts/MinimalAuthContext';
+import { useAuth } from '../../contexts/FastAuthContext';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
 import { X, Upload, Camera, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../../supabase/client';
+import { cloudinaryService } from '../../services/cloudinaryService';
 import toast from 'react-hot-toast';
 
 const UploadModal = ({ isOpen, onClose }) => {
@@ -12,8 +12,7 @@ const UploadModal = ({ isOpen, onClose }) => {
   const [preview, setPreview] = useState(null);
   const [formData, setFormData] = useState({
     description: '',
-    cropType: '',
-    location: userProfile?.farm_location || ''
+    cropType: ''
   });
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -140,51 +139,114 @@ const UploadModal = ({ isOpen, onClose }) => {
         fileToUpload = await compressImage(selectedFile);
       }
       
-      // Upload image to Supabase Storage
-      const fileName = `${Date.now()}_${fileToUpload.name}`;
-      const filePath = `user_${userProfile.id}/${fileName}`;
-      
       setUploadProgress(50); // Set progress to 50% during upload
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('uploads')
-        .upload(filePath, fileToUpload);
+      let uploadData, publicUrl;
       
-      if (uploadError) throw uploadError;
-      
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('uploads')
-        .getPublicUrl(filePath);
+      try {
+        // Try Cloudinary upload first
+        console.log('📤 Uploading to Cloudinary...');
+        const cloudinaryResult = await cloudinaryService.uploadImage(fileToUpload, userProfile.id);
+        
+        if (cloudinaryResult.success) {
+          uploadData = cloudinaryResult.data;
+          publicUrl = uploadData.secure_url;
+          
+          console.log('✅ Cloudinary upload successful:', uploadData.public_id);
+          console.log('🔗 Image URL:', publicUrl);
+          
+          toast.success('Image uploaded to Cloudinary!', {
+            duration: 4000,
+            icon: '☁️'
+          });
+        } else {
+          throw new Error(cloudinaryResult.error);
+        }
+      } catch (error) {
+        // Fallback to base64 if Cloudinary fails
+        console.log('🔧 Cloudinary failed, using base64 fallback...');
+        console.log('Error:', error.message);
+        
+        // Convert to base64 for reliable display
+        const base64Url = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsDataURL(fileToUpload);
+        });
+        
+        uploadData = {
+          public_id: `local_${Date.now()}_${fileToUpload.name}`,
+          bytes: fileToUpload.size,
+          format: fileToUpload.type.split('/')[1],
+          width: 'unknown',
+          height: 'unknown'
+        };
+        publicUrl = base64Url;
+        
+        console.log('✅ Base64 fallback successful');
+        
+        toast.success('Image uploaded successfully! (Local storage)', {
+          duration: 4000,
+          icon: '📸'
+        });
+      }
       
       setUploadProgress(75); // Set progress to 75% after upload
       
-      // Save upload data to Supabase database
+      // Save upload data to database (try real DB, fallback to local storage)
       const uploadRecord = {
         user_id: userProfile.id,
-        image_url: publicUrl,
-        description: formData.description.trim(),
+        file_name: fileToUpload.name,
+        file_path: uploadData.public_id, // Cloudinary public ID
+        file_size: uploadData.bytes || fileToUpload.size,
         crop_type: formData.cropType,
-        location: formData.location.trim(),
+        notes: formData.description.trim(),
+        public_url: publicUrl,
         status: 'pending',
-        created_at: new Date().toISOString(),
-        metadata: {
-          fileSize: fileToUpload.size,
-          fileName: fileToUpload.name,
-          contentType: fileToUpload.type,
-          originalSize: selectedFile.size
-        }
+        // Add image metadata (Cloudinary or base64)
+        cloudinary_public_id: uploadData.public_id,
+        cloudinary_format: uploadData.format,
+        cloudinary_width: uploadData.width,
+        cloudinary_height: uploadData.height,
+        storage_type: publicUrl.startsWith('data:') ? 'base64' : 'cloudinary',
+        // Add user info for admin display (localStorage fallback)
+        user_name: userProfile.name || userProfile.email?.split('@')[0] || 'Unknown User',
+        user_email: userProfile.email || 'no-email@example.com'
       };
       
-      const { error: dbError } = await supabase
-        .from('uploads')
-        .insert([uploadRecord]);
-      
-      if (dbError) throw dbError;
+      try {
+        const { error: dbError } = await supabase
+          .from('uploads')
+          .insert([uploadRecord]);
+        
+        if (dbError) {
+          // If database insert fails, store locally for development
+          console.log('Database insert failed, storing locally:', dbError.message);
+          const localUploads = JSON.parse(localStorage.getItem('farmtech_uploads') || '[]');
+          localUploads.push({
+            ...uploadRecord,
+            id: Date.now(),
+            created_at: new Date().toISOString()
+          });
+          localStorage.setItem('farmtech_uploads', JSON.stringify(localUploads));
+        }
+      } catch (error) {
+        console.log('Using local storage for upload record:', error.message);
+        const localUploads = JSON.parse(localStorage.getItem('farmtech_uploads') || '[]');
+        localUploads.push({
+          ...uploadRecord,
+          id: Date.now(),
+          created_at: new Date().toISOString()
+        });
+        localStorage.setItem('farmtech_uploads', JSON.stringify(localUploads));
+      }
       
       setUploadProgress(100); // Complete
       
-      toast.success('Image uploaded successfully!');
+      // Success message (if not already shown by fallback)
+      if (!publicUrl.includes('placeholder')) {
+        toast.success('Image uploaded successfully!');
+      }
       onClose();
       
       // Reset form
@@ -193,8 +255,7 @@ const UploadModal = ({ isOpen, onClose }) => {
       setUploadProgress(0);
       setFormData({
         description: '',
-        cropType: '',
-        location: userProfile?.farm_location || ''
+        cropType: ''
       });
       
     } catch (error) {
@@ -298,34 +359,24 @@ const UploadModal = ({ isOpen, onClose }) => {
           </div>
 
           {/* Form Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Crop Type
-              </label>
-              <select
-                name="cropType"
-                value={formData.cropType}
-                onChange={handleInputChange}
-                className="w-full h-10 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                required
-              >
-                <option value="">Select crop type</option>
-                {cropTypes.map((crop) => (
-                  <option key={crop} value={crop}>
-                    {crop}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <Input
-              label="Location"
-              name="location"
-              value={formData.location}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Crop Type
+            </label>
+            <select
+              name="cropType"
+              value={formData.cropType}
               onChange={handleInputChange}
-              placeholder="Farm location (optional)"
-            />
+              className="w-full h-10 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              required
+            >
+              <option value="">Select crop type</option>
+              {cropTypes.map((crop) => (
+                <option key={crop} value={crop}>
+                  {crop}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

@@ -1,7 +1,14 @@
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { AuthProvider, useAuth } from './contexts/MinimalAuthContext';
+import { AuthProvider, useAuth } from './contexts/FastAuthContext';
+import { NetworkProvider } from './contexts/NetworkContext';
+import { LanguageProvider } from './contexts/LanguageContext';
+import { CartProvider } from './contexts/CartContext';
+import ErrorBoundary from './components/ErrorBoundary';
+import MobileWrapper from './components/mobile/MobileWrapper';
 import Navbar from './components/layout/Navbar';
+import { performanceMonitor } from './utils/performance';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import FarmerDashboard from './pages/FarmerDashboard';
@@ -10,6 +17,8 @@ import Schemes from './pages/Schemes';
 import Contacts from './pages/Contacts';
 import Treatments from './pages/Treatments';
 import Support from './pages/Support';
+import Materials from './pages/Materials';
+import Cart from './pages/Cart';
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { currentUser, userProfile } = useAuth();
@@ -37,6 +46,15 @@ const PublicRoute = ({ children }) => {
 
 function AppContent() {
   const { currentUser, userProfile } = useAuth();
+
+  // Monitor app initialization performance
+  React.useEffect(() => {
+    performanceMonitor.startTiming('app-initialization');
+    
+    return () => {
+      performanceMonitor.endTiming('app-initialization');
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -108,6 +126,30 @@ function AppContent() {
             }
           />
           <Route
+            path="/materials"
+            element={
+              <ProtectedRoute>
+                <Materials />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/cart"
+            element={
+              <ProtectedRoute>
+                <Cart />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/upload"
+            element={
+              <ProtectedRoute>
+                <Materials />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/"
             element={
               currentUser ? <Navigate to="/dashboard" /> : <Navigate to="/login" />
@@ -122,16 +164,26 @@ function AppContent() {
 
 function App() {
   return (
-    <Router
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </Router>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <NetworkProvider>
+          <CartProvider>
+            <MobileWrapper>
+              <Router
+                future={{
+                  v7_startTransition: true,
+                  v7_relativeSplatPath: true,
+                }}
+              >
+                <AuthProvider>
+                  <AppContent />
+                </AuthProvider>
+              </Router>
+            </MobileWrapper>
+          </CartProvider>
+        </NetworkProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }
 

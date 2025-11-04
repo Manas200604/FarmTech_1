@@ -1,42 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useLanguage } from '../contexts/LanguageContext';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { 
-  Users, 
+  Beaker, 
   Search, 
   Filter, 
-  Phone,
-  Mail,
-  MapPin,
-  Star,
-  Award,
-  Clock,
-  CheckCircle
+  Leaf,
+  DollarSign,
+  AlertTriangle,
+  Info,
+  Calendar
 } from 'lucide-react';
 import { supabase } from '../supabase/client';
 
 const Treatments = () => {
+  const { t } = useLanguage();
   const [treatments, setTreatments] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
   const [cropFilter, setCropFilter] = useState('all');
+  const [selectedTreatment, setSelectedTreatment] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
-  const regions = ['North', 'South', 'East', 'West', 'Central'];
-  const specializations = [
-    'Crop Diseases', 'Soil Management', 'Pest Control', 'Irrigation', 
-    'Organic Farming', 'Livestock', 'Horticulture', 'Agronomy'
-  ];
+  const cropTypes = ['Rice', 'Wheat', 'Tomato', 'Potato', 'Cotton', 'Corn', 'Sugarcane'];
 
   useEffect(() => {
     const fetchTreatments = async () => {
       try {
-        const { data: treatmentsData, error } = await supabase
-          .from('pesticides')
+        // Try treatments table first, then pesticides
+        let { data: treatmentsData, error } = await supabase
+          .from('treatments')
           .select('*')
           .order('name', { ascending: true });
 
-        if (error) throw error;
+        if (error && error.code === 'PGRST205') {
+          // Try pesticides table if treatments doesn't exist
+          const { data: pesticidesData, error: pesticidesError } = await supabase
+            .from('pesticides')
+            .select('*')
+            .order('name', { ascending: true });
+          
+          if (pesticidesError) throw pesticidesError;
+          treatmentsData = pesticidesData;
+        } else if (error) {
+          throw error;
+        }
+
         setTreatments(treatmentsData || []);
       } catch (error) {
         console.error('Error fetching treatments:', error);
@@ -45,41 +55,55 @@ const Treatments = () => {
 
     fetchTreatments();
 
-    // Set up real-time subscription
-    const subscription = supabase
+    // Set up real-time subscription for both possible table names
+    const treatmentsSubscription = supabase
+      .channel('treatments_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'treatments' }, fetchTreatments)
+      .subscribe();
+
+    const pesticidesSubscription = supabase
       .channel('pesticides_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pesticides' }, fetchTreatments)
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      treatmentsSubscription.unsubscribe();
+      pesticidesSubscription.unsubscribe();
     };
-
-    return () => unsubscribe();
   }, []);
 
-  const filteredContacts = contacts.filter(contact => {
-    const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         contact.specialization.some(spec => 
-                           spec.toLowerCase().includes(searchTerm.toLowerCase())
-                         );
-    const matchesRegion = regionFilter === 'all' || contact.region === regionFilter;
-    const matchesSpecialization = specializationFilter === 'all' || 
-                                 contact.specialization.includes(specializationFilter);
-    return matchesSearch && matchesRegion && matchesSpecialization;
+  const filteredTreatments = treatments.filter(treatment => {
+    const matchesSearch = treatment.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         treatment.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         treatment.crop_type.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCrop = cropFilter === 'all' || treatment.crop_type === cropFilter;
+    return matchesSearch && matchesCrop;
   });
 
-  const renderStars = (rating) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Star
-        key={i}
-        className={`h-4 w-4 ${
-          i < Math.floor(rating || 0) 
-            ? 'text-yellow-400 fill-current' 
-            : 'text-gray-300'
-        }`}
-      />
-    ));
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    return new Date(timestamp).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const getTreatmentType = (name) => {
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('npk') || lowerName.includes('fertilizer')) return 'Fertilizer';
+    if (lowerName.includes('oil') || lowerName.includes('neem')) return 'Organic';
+    if (lowerName.includes('fungicide') || lowerName.includes('mancozeb')) return 'Fungicide';
+    return 'Pesticide';
+  };
+
+  const getTypeColor = (type) => {
+    switch (type) {
+      case 'Fertilizer': return 'bg-green-100 text-green-800';
+      case 'Organic': return 'bg-blue-100 text-blue-800';
+      case 'Fungicide': return 'bg-purple-100 text-purple-800';
+      default: return 'bg-orange-100 text-orange-800';
+    }
   };
 
   return (
@@ -88,198 +112,238 @@ const Treatments = () => {
       <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-lg p-6 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Treatments & Fertilizers</h1>
+            <h1 className="text-2xl font-bold">Treatments & Pesticides</h1>
             <p className="text-primary-100 mt-1">
-              Find the right treatments for your crops
+              Find the right treatments and fertilizers for your crops
             </p>
           </div>
-          <Users className="h-16 w-16 text-primary-200" />
+          <Beaker className="h-16 w-16 text-primary-200" />
         </div>
-      </div>      
-{/* Filters */}
+      </div>
+
+      {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search specialists..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search treatments..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-            
-            <select
-              value={regionFilter}
-              onChange={(e) => setRegionFilter(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            >
-              <option value="all">All Regions</option>
-              {regions.map(region => (
-                <option key={region} value={region}>{region}</option>
-              ))}
-            </select>
-
-            <select
-              value={specializationFilter}
-              onChange={(e) => setSpecializationFilter(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            >
-              <option value="all">All Specializations</option>
-              {specializations.map(spec => (
-                <option key={spec} value={spec}>{spec}</option>
-              ))}
-            </select>
-
+            <div className="flex items-center space-x-2">
+              <Filter className="h-4 w-4 text-gray-400" />
+              <select
+                value={cropFilter}
+                onChange={(e) => setCropFilter(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+              >
+                <option value="all">All Crops</option>
+                {cropTypes.map(crop => (
+                  <option key={crop} value={crop}>{crop}</option>
+                ))}
+              </select>
+            </div>
             <div className="flex items-center text-sm text-gray-600">
-              <Filter className="h-4 w-4 mr-2" />
-              <span>{filteredContacts.length} specialists found</span>
+              <span>{filteredTreatments.length} treatments found</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Contacts Grid */}
+      {/* Treatments Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredContacts.map((contact) => (
-          <Card key={contact.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-lg flex items-center">
-                    {contact.name}
-                    {contact.isVerified && (
-                      <CheckCircle className="h-5 w-5 text-green-500 ml-2" />
-                    )}
-                  </CardTitle>
-                  <div className="flex items-center mt-2">
-                    {renderStars(contact.rating)}
-                    <span className="ml-2 text-sm text-gray-600">
-                      ({contact.rating?.toFixed(1) || 'New'})
-                    </span>
+        {filteredTreatments.map((treatment) => {
+          const treatmentType = getTreatmentType(treatment.name);
+          
+          return (
+            <Card key={treatment.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg">{treatment.name}</CardTitle>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(treatmentType)}`}>
+                        {treatmentType}
+                      </span>
+                      <span className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
+                        {treatment.crop_type}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardHeader>
-            
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center text-sm text-gray-600">
-                  <MapPin className="h-4 w-4 mr-2 text-gray-400" />
-                  <span>{contact.region} Region</span>
-                </div>
-
-                <div className="flex items-center text-sm text-gray-600">
-                  <Award className="h-4 w-4 mr-2 text-gray-400" />
-                  <span>{contact.experience} years experience</span>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">Specializations:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {contact.specialization.slice(0, 3).map((spec, index) => (
-                      <span
-                        key={index}
-                        className="px-2 py-1 text-xs bg-primary-100 text-primary-800 rounded-full"
-                      >
-                        {spec}
-                      </span>
-                    ))}
-                    {contact.specialization.length > 3 && (
-                      <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
-                        +{contact.specialization.length - 3} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">Crop Types:</p>
-                  <p className="text-sm text-gray-600">
-                    {contact.cropTypes.slice(0, 3).join(', ')}
-                    {contact.cropTypes.length > 3 && ` +${contact.cropTypes.length - 3} more`}
+              </CardHeader>
+              
+              <CardContent>
+                <div className="space-y-3">
+                  <p className="text-gray-600 text-sm line-clamp-3">
+                    {treatment.description}
                   </p>
-                </div>
 
-                {contact.availability && (
+                  {treatment.price_range && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <DollarSign className="h-4 w-4 mr-2 text-gray-400" />
+                      <span>{treatment.price_range}</span>
+                    </div>
+                  )}
+
                   <div className="flex items-center text-sm text-gray-600">
-                    <Clock className="h-4 w-4 mr-2 text-gray-400" />
-                    <span>{contact.availability.hours}</span>
+                    <Leaf className="h-4 w-4 mr-2 text-gray-400" />
+                    <span>For {treatment.crop_type} crops</span>
                   </div>
-                )}
 
-                <div className="pt-3 border-t space-y-2">
-                  {contact.contactInfo.phone && (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                        <span>{contact.contactInfo.phone}</span>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => window.open(`tel:${contact.contactInfo.phone}`)}
-                      >
-                        Call
-                      </Button>
+                  {treatment.created_at && (
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Calendar className="h-4 w-4 mr-2" />
+                      <span>Added: {formatDate(treatment.created_at)}</span>
                     </div>
                   )}
 
-                  {contact.contactInfo.email && (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Mail className="h-4 w-4 mr-2 text-gray-400" />
-                        <span className="truncate">{contact.contactInfo.email}</span>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => window.open(`mailto:${contact.contactInfo.email}`)}
-                      >
-                        Email
-                      </Button>
-                    </div>
-                  )}
+                  <div className="pt-3 border-t">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setSelectedTreatment(treatment);
+                        setShowDetailModal(true);
+                      }}
+                      className="w-full"
+                    >
+                      <Info className="h-4 w-4 mr-2" />
+                      View Usage Details
+                    </Button>
+                  </div>
                 </div>
-
-                {contact.qualifications && contact.qualifications.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-1">Qualifications:</p>
-                    <p className="text-xs text-gray-600">
-                      {contact.qualifications.join(', ')}
-                    </p>
-                  </div>
-                )}
-
-                {contact.languages && contact.languages.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-1">Languages:</p>
-                    <p className="text-xs text-gray-600">
-                      {contact.languages.join(', ')}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
-      {filteredContacts.length === 0 && (
+      {filteredTreatments.length === 0 && (
         <Card>
           <CardContent className="text-center py-12">
-            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No specialists found</h3>
+            <Beaker className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No treatments found</h3>
             <p className="text-gray-600">
-              {searchTerm || regionFilter !== 'all' || specializationFilter !== 'all'
+              {searchTerm || cropFilter !== 'all'
                 ? 'Try adjusting your search or filter criteria'
-                : 'No specialists are currently available'
+                : 'No treatments are currently available'
               }
             </p>
           </CardContent>
         </Card>
       )}
+
+      {/* Treatment Detail Modal */}
+      {showDetailModal && selectedTreatment && (
+        <TreatmentDetailModal
+          treatment={selectedTreatment}
+          onClose={() => {
+            setShowDetailModal(false);
+            setSelectedTreatment(null);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// Treatment Detail Modal Component
+const TreatmentDetailModal = ({ treatment, onClose }) => {
+  const treatmentType = (name) => {
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('npk') || lowerName.includes('fertilizer')) return 'Fertilizer';
+    if (lowerName.includes('oil') || lowerName.includes('neem')) return 'Organic';
+    if (lowerName.includes('fungicide') || lowerName.includes('mancozeb')) return 'Fungicide';
+    return 'Pesticide';
+  };
+
+  const getTypeColor = (type) => {
+    switch (type) {
+      case 'Fertilizer': return 'bg-green-100 text-green-800';
+      case 'Organic': return 'bg-blue-100 text-blue-800';
+      case 'Fungicide': return 'bg-purple-100 text-purple-800';
+      default: return 'bg-orange-100 text-orange-800';
+    }
+  };
+
+  const type = treatmentType(treatment.name);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">{treatment.name}</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl"
+          >
+            ×
+          </button>
+        </div>
+        
+        <div className="p-6 space-y-6">
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 text-sm font-medium rounded-full ${getTypeColor(type)}`}>
+              {type}
+            </span>
+            <span className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-full">
+              {treatment.crop_type}
+            </span>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Description</h3>
+            <p className="text-gray-700 leading-relaxed">{treatment.description}</p>
+          </div>
+
+          {treatment.recommended_usage && (
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Usage Instructions</h3>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <Info className="h-5 w-5 text-blue-500 mr-2 mt-0.5 flex-shrink-0" />
+                  <p className="text-blue-800">{treatment.recommended_usage}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {treatment.price_range && (
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Price Range</h3>
+              <div className="flex items-center">
+                <DollarSign className="h-5 w-5 text-green-500 mr-2" />
+                <span className="text-gray-700">{treatment.price_range}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <AlertTriangle className="h-5 w-5 text-yellow-500 mr-2 mt-0.5 flex-shrink-0" />
+              <div>
+                <h4 className="font-medium text-yellow-900 mb-1">Safety Precautions</h4>
+                <p className="text-yellow-800 text-sm">
+                  Always read the product label carefully. Use protective equipment when handling. 
+                  Keep away from children and pets. Follow recommended dosage and application timing.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-4 pt-4 border-t">
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

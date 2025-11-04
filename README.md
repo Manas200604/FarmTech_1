@@ -1,284 +1,325 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-# FarmTech
-=======
-# FarmTech - Agricultural Management Platform
-=======
-# 🌾 FarmTech - Agricultural Management Platform
->>>>>>> b4d6455 ( FarmTech v1.0.0 - Complete Agricultural Management Platform)
+# 🌾 FarmTech - Complete Farming Management System
 
-[![React](https://img.shields.io/badge/React-18-blue)](https://reactjs.org/)
-[![Firebase](https://img.shields.io/badge/Firebase-10-orange)](https://firebase.google.com/)
-[![Tailwind](https://img.shields.io/badge/Tailwind-3.3-cyan)](https://tailwindcss.com/)
-[![Vite](https://img.shields.io/badge/Vite-5.0-purple)](https://vitejs.dev/)
+A comprehensive React-based farming management application with Android mobile support, built with Vite, Capacitor, and modern web technologies.
 
-A modern, responsive web application built with React and Firebase to empower farmers with digital tools and real-time insights. Connect farmers with agricultural experts, government schemes, and treatment recommendations.
+## 📱 **Features**
 
-## 🎯 Live Demo
+### **For Farmers:**
+- 🏠 **Dashboard**: Personal farming statistics and overview
+- 📦 **Materials Ordering**: Browse and order agricultural materials
+- 💳 **Payment System**: QR code payment verification with receipt upload
+- 📋 **Crop Forms**: Submit crop information and requirements
+- 📤 **File Uploads**: Upload crop images and documents
+- 🛒 **Shopping Cart**: Add materials to cart and checkout
+- 🌐 **Multi-language**: English, Hindi, and Marathi support
 
-**Try the application with these demo accounts:**
+### **For Admins:**
+- 👥 **User Management**: View and manage farmer accounts
+- 📊 **Analytics Dashboard**: Sales, orders, and inventory analytics
+- 📦 **Materials Management**: Add, edit, and manage agricultural materials
+- 💰 **Payment Review**: Approve/reject farmer payment submissions
+- 📋 **Crop Forms Review**: Review and respond to farmer crop forms
+- 🗂️ **Upload Management**: View and delete user uploads with advanced filtering
+- 📈 **Inventory Tracking**: Monitor stock levels and low inventory alerts
 
-👨‍🌾 **Farmer Account:**
-- Email: `farmer@farmtech.com`
-- Password: `farmer123456`
+### **Technical Features:**
+- 📱 **Cross-Platform**: Web browser and Android mobile app
+- 🔄 **Offline Support**: Works without internet connection
+- 🎨 **Responsive Design**: Optimized for all screen sizes
+- 🔐 **Authentication**: Secure login system with role-based access
+- 💾 **Data Storage**: localStorage with Supabase integration
+- 🌍 **PWA Ready**: Progressive Web App capabilities
 
-👨‍💼 **Admin Account:**
-- Email: `admin@farmtech.com`  
-- Password: `admin123456`
+---
 
-## 🌟 Features
+## 🚀 **Quick Start**
 
-### For Farmers
-- **Crop Photo Upload**: Upload crop images for expert analysis and advice
-- **Government Schemes**: Browse and apply for agricultural schemes and subsidies
-- **Expert Network**: Connect with verified agricultural specialists
-- **Treatment Guide**: Access information about pesticides, fertilizers, and treatments
-- **Dashboard**: Track upload history and application status
+### **Prerequisites**
+- Node.js 18+ and npm
+- Android Studio (for mobile app)
+- Git
 
-### For Admins
-- **User Management**: View and manage farmer accounts
-- **Upload Review**: Review and provide feedback on farmer uploads
-- **Content Management**: Manage schemes, contacts, and treatment information
-- **Analytics**: View system statistics and user activity
+### **Installation**
 
-## 🚀 Tech Stack
-
-- **Frontend**: React 18, JavaScript (JSX)
-- **Styling**: Tailwind CSS
-- **Build Tool**: Vite
-- **Backend**: Firebase (Authentication, Firestore, Storage)
-- **Icons**: Lucide React
-- **Notifications**: React Hot Toast
-- **Routing**: React Router v6
-
-## 📋 Prerequisites
-
-- Node.js (v16 or higher)
-- npm or yarn
-- Firebase project with the following services enabled:
-  - Authentication
-  - Firestore Database
-  - Storage
-
-## 🛠️ Installation
-
-1. **Clone the repository**
+1. **Clone the repository:**
    ```bash
    git clone <repository-url>
-   cd farmtech
+   cd FarmTech
    ```
 
-2. **Install dependencies**
+2. **Install dependencies:**
    ```bash
    npm install
    ```
 
-3. **Configure Firebase**
-   - Create a Firebase project at [Firebase Console](https://console.firebase.google.com)
-   - Enable Authentication, Firestore, and Storage
-   - Copy your Firebase configuration
-   - Update the `.env` file with your Firebase credentials:
-   ```env
-   VITE_FIREBASE_API_KEY=your_api_key
-   VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
-   VITE_FIREBASE_PROJECT_ID=your_project_id
-   VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   VITE_FIREBASE_APP_ID=your_app_id
-   VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+3. **Add your images:**
+   ```bash
+   # Place your images in public/images/
+   public/images/logo.png      # Your app logo
+   public/images/Scanner.png   # QR code scanner image
    ```
 
-4. **Start the development server**
+4. **Start development server:**
    ```bash
    npm run dev
    ```
 
-5. **Open your browser**
-   Navigate to `http://localhost:3000`
-
-## 🔧 Firebase Setup
-
-### Firestore Security Rules
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read: if request.auth != null && 
-        (request.auth.uid == userId || isAdmin());
-      allow write: if request.auth != null && 
-        request.auth.uid == userId;
-    }
-
-    match /uploads/{uploadId} {
-      allow create: if request.auth != null && 
-        request.resource.data.userId == request.auth.uid;
-      allow read: if request.auth != null && 
-        (resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isAdmin();
-    }
-
-    match /schemes/{schemeId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /contacts/{contactId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /treatments/{treatmentId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    function isAdmin() {
-      return request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-  }
-}
-```
-
-### Storage Security Rules
-```javascript
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /uploads/{userId}/{allPaths=**} {
-      allow write: if request.auth != null && 
-        request.auth.uid == userId &&
-        request.resource.size < 10 * 1024 * 1024;
-      allow read: if request.auth != null && 
-        (request.auth.uid == userId || isAdmin());
-    }
-
-    function isAdmin() {
-      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-  }
-}
-```
-
-## 👥 User Accounts
-
-### Demo Accounts
-The application supports two types of users:
-
-1. **Farmer Account**
-   - Register with role: "farmer"
-   - Access: Upload crops, view schemes, contact specialists
-
-2. **Admin Account**
-   - Register with role: "admin"
-   - Admin code: `admin123` (configured in .env)
-   - Access: All farmer features + admin dashboard
-
-### Creating Admin Account
-1. Go to registration page
-2. Select "Admin" account type
-3. Enter admin code: `admin123`
-4. Complete registration
-
-## 📊 Database Structure
-
-### Collections
-- **users**: User profiles and farm details
-- **uploads**: Crop image uploads and reviews
-- **schemes**: Government schemes and subsidies
-- **contacts**: Agricultural specialist information
-- **treatments**: Pesticides, fertilizers, and treatments
-
-### Sample Data
-The application includes a database seeding feature:
-1. Login as admin
-2. Go to Admin Dashboard → Content tab
-3. Click "Seed Database" to populate with sample data
-
-## 🎨 UI Components
-
-The application uses a custom component library built with Tailwind CSS:
-- **Button**: Multiple variants (primary, secondary, outline, ghost)
-- **Input**: Form inputs with validation and error states
-- **Card**: Content containers with consistent styling
-- **Modal**: Overlay dialogs for forms and details
-
-## 📱 Responsive Design
-
-- Mobile-first approach
-- Optimized for all screen sizes
-- Touch-friendly interactions
-- Progressive Web App ready
-
-## 🔒 Security Features
-
-- Firebase Authentication
-- Role-based access control
-- Secure file uploads (10MB limit)
-- Input validation and sanitization
-- Protected routes
-
-## 🚀 Deployment
-
-### Build for Production
-```bash
-npm run build
-```
-
-### Deploy to Firebase Hosting
-```bash
-# Install Firebase CLI
-npm install -g firebase-tools
-
-# Login to Firebase
-firebase login
-
-# Initialize Firebase in your project
-firebase init
-
-# Deploy
-firebase deploy
-```
-
-## 📈 Performance Optimizations
-
-- Image compression for uploads
-- Lazy loading for large lists
-- Efficient Firestore queries
-- Optimized bundle size with Vite
-
-## 🧪 Testing
-
-Run the linter:
-```bash
-npm run lint
-```
-
-Preview production build:
-```bash
-npm run preview
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 📞 Support
-
-For support and questions:
-- Create an issue in the repository
-- Contact the development team
+5. **Open in browser:**
+   ```
+   http://localhost:5173
+   ```
 
 ---
 
-**Built with ❤️ for farmers and agricultural communities**
->>>>>>> 174a916 (first commit)
+## 🌐 **Web Development**
+
+### **Available Scripts**
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run preview      # Preview production build
+npm run test         # Run tests
+npm run lint         # Check code quality
+```
+
+### **Login System**
+- Create admin and farmer accounts through the registration system
+- Role-based access control with different permissions
+- Secure authentication with persistent sessions
+
+### **Project Structure**
+```
+src/
+├── components/          # Reusable UI components
+│   ├── admin/          # Admin-specific components
+│   ├── cart/           # Shopping cart components
+│   ├── forms/          # Form components
+│   ├── layout/         # Layout components (Navbar, etc.)
+│   ├── mobile/         # Mobile-specific components
+│   ├── payment/        # Payment system components
+│   └── ui/             # Basic UI components
+├── contexts/           # React contexts (Auth, Language, Cart)
+├── hooks/              # Custom React hooks
+├── pages/              # Main application pages
+├── styles/             # CSS and styling files
+├── utils/              # Utility functions and storage
+└── models/             # Data models
+```
+
+---
+
+## 📱 **Android App Development**
+
+### **Build Android App**
+
+1. **Build web assets:**
+   ```bash
+   npm run build
+   ```
+
+2. **Sync with Capacitor:**
+   ```bash
+   npx cap sync android
+   ```
+
+3. **Open Android Studio:**
+   ```bash
+   npx cap open android
+   ```
+
+4. **Build APK in Android Studio:**
+   - Wait for Gradle sync to complete
+   - Go to `Build` → `Build Bundle(s) / APK(s)` → `Build APK(s)`
+   - APK will be generated in `android/app/build/outputs/apk/`
+
+### **Android Configuration**
+- **Package Name**: `com.farmtech.app`
+- **Min SDK**: 24 (Android 7.0)
+- **Target SDK**: 33 (Android 13)
+- **Permissions**: Internet, Network State, File Storage, Camera
+
+### **Install APK**
+- **Debug APK**: `android/app/build/outputs/apk/debug/app-debug.apk`
+- **Release APK**: `android/app/build/outputs/apk/release/app-release.apk`
+
+---
+
+## 🎨 **Customization**
+
+### **Logo and Branding**
+1. Replace `public/images/logo.png` with your logo
+2. Update app name in `capacitor.config.json`
+3. Replace Android icons in `android/app/src/main/res/mipmap-*/`
+
+### **Colors and Styling**
+- Edit `tailwind.config.js` for color scheme
+- Modify `src/styles/` for custom CSS
+- Update theme in `capacitor.config.json`
+
+### **Languages**
+- Add translations in `src/contexts/LanguageContext.jsx`
+- Supported: English (en), Hindi (hi), Marathi (mr)
+
+---
+
+## 🔧 **Configuration**
+
+### **Environment Variables**
+Create `.env` file:
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_key
+VITE_APP_NAME=FarmTech
+```
+
+### **Capacitor Configuration**
+Edit `capacitor.config.json`:
+```json
+{
+  "appId": "com.farmtech.app",
+  "appName": "FarmTech",
+  "webDir": "dist"
+}
+```
+
+---
+
+## 📊 **Features Overview**
+
+### **Materials Management**
+- Browse agricultural materials catalog
+- Add items to shopping cart
+- Place orders with delivery details
+- Track order status and history
+
+### **Payment System**
+- QR code scanner for payments
+- Upload payment screenshots
+- Admin verification system
+- Payment history tracking
+
+### **Upload System**
+- Upload crop images and documents
+- Categorize uploads (crop, payment, document, general)
+- Admin review and approval system
+- Advanced search and filtering
+
+### **Multi-language Support**
+- English, Hindi, and Marathi
+- Dynamic language switching
+- Localized content and UI
+
+### **Admin Dashboard**
+- User management and analytics
+- Sales and inventory reports
+- Payment verification workflow
+- Content management system
+
+---
+
+## 🛠️ **Development**
+
+### **Tech Stack**
+- **Frontend**: React 18, Vite, Tailwind CSS
+- **Mobile**: Capacitor, Android Studio
+- **State Management**: React Context API
+- **Storage**: localStorage, Supabase (optional)
+- **Authentication**: Custom auth system
+- **Icons**: Lucide React
+- **Testing**: Vitest, React Testing Library
+
+### **Code Quality**
+- ESLint for code linting
+- Prettier for code formatting
+- TypeScript support (optional)
+- Component-based architecture
+
+### **Performance**
+- Lazy loading for components
+- Image optimization
+- Offline caching
+- Virtual scrolling for large lists
+
+---
+
+## 🚀 **Deployment**
+
+### **Web Deployment**
+1. Build the project: `npm run build`
+2. Deploy `dist/` folder to your web server
+3. Configure server for SPA routing
+
+### **Android Deployment**
+1. Build APK in Android Studio
+2. Sign APK for release
+3. Upload to Google Play Store or distribute directly
+
+### **Updates**
+1. Make code changes
+2. Run `npm run build`
+3. Run `npx cap sync android`
+4. Rebuild APK in Android Studio
+
+---
+
+## 📋 **Troubleshooting**
+
+### **Common Issues**
+
+**Build Errors:**
+- Clear node_modules: `rm -rf node_modules && npm install`
+- Clear build cache: `npm run build -- --force`
+
+**Android Build Issues:**
+- Clean project in Android Studio
+- Sync Gradle files
+- Check Android SDK installation
+
+**Image Loading Issues:**
+- Verify images are in `public/images/`
+- Check file names are exact (case-sensitive)
+- Use browser dev tools to check network requests
+
+**Login Issues:**
+- Create new accounts through registration
+- Check browser console for errors
+- Clear localStorage if needed
+
+---
+
+## 📞 **Support**
+
+### **Getting Help**
+- Check browser console for errors
+- Review Android Studio build logs
+- Verify all dependencies are installed
+- Ensure images are properly placed
+
+### **Development Tips**
+- Use `npm run dev` for development
+- Test in browser before building Android
+- Check responsive design on different screen sizes
+- Verify all features work offline
+
+---
+
+## 🎯 **Production Ready**
+
+This FarmTech application is production-ready with:
+- ✅ Complete farming management system
+- ✅ Cross-platform web and mobile support
+- ✅ Admin and farmer role management
+- ✅ Multi-language support
+- ✅ Offline functionality
+- ✅ Payment verification system
+- ✅ File upload and management
+- ✅ Responsive design
+- ✅ Production build optimization
+
+**Ready to deploy and use for real farming operations!** 🌾✨
+
+---
+
+## 📄 **License**
+
+This project is licensed under the MIT License - see the LICENSE file for details.

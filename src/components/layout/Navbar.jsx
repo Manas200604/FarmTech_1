@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/MinimalAuthContext';
+import { useAuth } from '../../contexts/FastAuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useCart } from '../../contexts/CartContext';
 import { Button } from '../ui/Button';
+import LanguageSelector from '../ui/LanguageSelector';
 import { 
   Menu, 
   X, 
@@ -12,11 +15,14 @@ import {
   Settings,
   LogOut,
   Leaf,
-  MessageSquare
+  MessageSquare,
+  ShoppingCart
 } from 'lucide-react';
 
 const Navbar = () => {
   const { currentUser, userProfile, logout } = useAuth();
+  const { t } = useLanguage();
+  const { itemCount } = useCart();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -31,16 +37,17 @@ const Navbar = () => {
 
   const navItems = currentUser ? (
     userProfile?.role === 'admin' ? [
-      { name: 'Dashboard', path: '/admin', icon: Home },
-      { name: 'Schemes', path: '/schemes', icon: FileText },
-      { name: 'Contacts', path: '/contacts', icon: Users },
-      { name: 'Treatments', path: '/treatments', icon: Settings },
+      { name: t('dashboard'), path: '/admin', icon: Home },
+      { name: t('materials'), path: '/materials', icon: MessageSquare },
+      { name: t('schemes'), path: '/schemes', icon: FileText },
+      { name: t('contacts'), path: '/contacts', icon: Users },
+      { name: t('treatments'), path: '/treatments', icon: Settings },
     ] : [
-      { name: 'Dashboard', path: '/dashboard', icon: Home },
-      { name: 'Upload', path: '/dashboard', icon: Upload },
-      { name: 'Schemes', path: '/schemes', icon: FileText },
-      { name: 'Contacts', path: '/contacts', icon: Users },
-      { name: 'Materials', path: '/support', icon: MessageSquare },
+      { name: t('dashboard'), path: '/dashboard', icon: Home },
+      { name: t('upload'), path: '/materials', icon: Upload },
+      { name: t('materials'), path: '/materials', icon: MessageSquare },
+      { name: t('schemes'), path: '/schemes', icon: FileText },
+      { name: t('contacts'), path: '/contacts', icon: Users },
     ]
   ) : [];
 
@@ -51,7 +58,17 @@ const Navbar = () => {
           {/* Logo */}
           <div className="flex items-center">
             <Link to="/" className="flex items-center space-x-2">
-              <Leaf className="h-8 w-8 text-primary-500" />
+              <img 
+                src="/images/logo.png" 
+                alt="FarmTech Logo" 
+                className="h-8 w-8 object-contain"
+                onError={(e) => {
+                  // Fallback to leaf icon if logo fails to load
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'inline-block';
+                }}
+              />
+              <Leaf className="h-8 w-8 text-primary-500" style={{ display: 'none' }} />
               <span className="text-xl font-bold text-gray-900">FarmTech</span>
             </Link>
           </div>
@@ -72,31 +89,49 @@ const Navbar = () => {
               );
             })}
             
-            {currentUser ? (
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-600">
-                  Welcome, {userProfile?.name || currentUser.email}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="flex items-center space-x-1"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Logout</span>
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-4">
-                <Link to="/login">
-                  <Button variant="outline" size="sm">Login</Button>
-                </Link>
-                <Link to="/register">
-                  <Button size="sm">Register</Button>
-                </Link>
-              </div>
+            {/* Cart Icon for non-admin users */}
+            {currentUser && userProfile?.role !== 'admin' && (
+              <Link
+                to="/cart"
+                className="relative flex items-center space-x-1 text-gray-600 hover:text-primary-500 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                {itemCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-primary-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {itemCount}
+                  </span>
+                )}
+              </Link>
             )}
+            
+            <div className="flex items-center space-x-4">
+              <LanguageSelector />
+              {currentUser ? (
+                <>
+                  <span className="text-sm text-gray-600">
+                    {t('welcome')}, {userProfile?.name || currentUser.email}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLogout}
+                    className="flex items-center space-x-1"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>{t('logout')}</span>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link to="/login">
+                    <Button variant="outline" size="sm">{t('login')}</Button>
+                  </Link>
+                  <Link to="/register">
+                    <Button size="sm">{t('register')}</Button>
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Mobile menu button */}
@@ -129,37 +164,59 @@ const Navbar = () => {
                 );
               })}
               
-              {currentUser ? (
-                <div className="border-t border-gray-200 pt-4 pb-3">
-                  <div className="px-3 mb-3">
-                    <p className="text-sm text-gray-600">
-                      Welcome, {userProfile?.name || currentUser.email}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleLogout}
-                    className="mx-3 flex items-center space-x-1"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Logout</span>
-                  </Button>
-                </div>
-              ) : (
-                <div className="border-t border-gray-200 pt-4 pb-3 space-y-2">
-                  <Link to="/login" onClick={() => setIsMenuOpen(false)}>
-                    <Button variant="outline" size="sm" className="mx-3 w-full">
-                      Login
-                    </Button>
-                  </Link>
-                  <Link to="/register" onClick={() => setIsMenuOpen(false)}>
-                    <Button size="sm" className="mx-3 w-full">
-                      Register
-                    </Button>
-                  </Link>
-                </div>
+              {/* Mobile Cart Link for non-admin users */}
+              {currentUser && userProfile?.role !== 'admin' && (
+                <Link
+                  to="/cart"
+                  className="relative flex items-center space-x-2 text-gray-600 hover:text-primary-500 block px-3 py-2 rounded-md text-base font-medium"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  <span>{t('cart', 'Cart')}</span>
+                  {itemCount > 0 && (
+                    <span className="bg-primary-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center ml-auto">
+                      {itemCount}
+                    </span>
+                  )}
+                </Link>
               )}
+              
+              <div className="border-t border-gray-200 pt-4 pb-3">
+                <div className="px-3 mb-3">
+                  <LanguageSelector />
+                </div>
+                {currentUser ? (
+                  <>
+                    <div className="px-3 mb-3">
+                      <p className="text-sm text-gray-600">
+                        {t('welcome')}, {userProfile?.name || currentUser.email}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleLogout}
+                      className="mx-3 flex items-center space-x-1"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>{t('logout')}</span>
+                    </Button>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <Link to="/login" onClick={() => setIsMenuOpen(false)}>
+                      <Button variant="outline" size="sm" className="mx-3 w-full">
+                        {t('login')}
+                      </Button>
+                    </Link>
+                    <Link to="/register" onClick={() => setIsMenuOpen(false)}>
+                      <Button size="sm" className="mx-3 w-full">
+                        {t('register')}
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

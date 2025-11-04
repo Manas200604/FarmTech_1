@@ -1,4 +1,5 @@
 import React from 'react';
+import { logger } from '../utils/logger';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -12,6 +13,7 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('Error caught by boundary:', error, errorInfo);
+    logger.reportCrash(error, errorInfo);
   }
 
   render() {
@@ -30,12 +32,20 @@ class ErrorBoundary extends React.Component {
             <p className="text-gray-600 text-center mb-4">
               We're sorry, but something unexpected happened. Please try refreshing the page.
             </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full bg-primary-500 text-white py-2 px-4 rounded-md hover:bg-primary-600 transition-colors"
-            >
-              Refresh Page
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full bg-primary-500 text-white py-2 px-4 rounded-md hover:bg-primary-600 transition-colors"
+              >
+                Refresh Page
+              </button>
+              <button
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
           </div>
         </div>
       );

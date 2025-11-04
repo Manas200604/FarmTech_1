@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/MinimalAuthContext';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { useAuth } from '../contexts/FastAuthContext';
+import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import UploadModal from '../components/upload/UploadModal';
+import UploadStatus from '../components/farmer/UploadStatus';
 import {
   Upload,
   FileText,
@@ -11,8 +12,6 @@ import {
   Camera,
   Clock,
   CheckCircle,
-  XCircle,
-  TrendingUp,
   Leaf,
   MessageSquare
 } from 'lucide-react';
@@ -22,7 +21,7 @@ const FarmerDashboard = () => {
   const { userProfile } = useAuth();
   const navigate = useNavigate();
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showAllUploads, setShowAllUploads] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [uploads, setUploads] = useState([]);
   const [stats, setStats] = useState({
     totalUploads: 0,
@@ -35,25 +34,57 @@ const FarmerDashboard = () => {
 
     const fetchUploads = async () => {
       try {
-        const { data: uploadsData, error } = await supabase
+        // Try to load from Supabase first
+        const { data: supabaseUploads, error } = await supabase
           .from('uploads')
           .select('*')
           .eq('user_id', userProfile.id)
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        let allUploads = [];
 
-        setUploads(uploadsData || []);
+        if (error) {
+          console.log('Loading from localStorage fallback...');
+        } else {
+          allUploads = supabaseUploads || [];
+        }
 
-        // Calculate stats
-        const totalUploads = uploadsData?.length || 0;
-        const pendingReviews = uploadsData?.filter(upload => upload.status === 'pending').length || 0;
-        const reviewedUploads = uploadsData?.filter(upload => upload.status === 'reviewed').length || 0;
+        // Also load from localStorage (for development mode uploads)
+        const localUploads = JSON.parse(localStorage.getItem('farmtech_uploads') || '[]');
+        
+        // Filter local uploads for current user and merge
+        const userLocalUploads = localUploads.filter(upload => 
+          upload.user_id === userProfile.id
+        );
+
+        // Merge and deduplicate uploads
+        const mergedUploads = [...allUploads];
+        
+        userLocalUploads.forEach(localUpload => {
+          // Add local uploads that aren't already in Supabase
+          if (!allUploads.find(u => u.file_path === localUpload.file_path)) {
+            mergedUploads.push({
+              ...localUpload,
+              source: 'local'
+            });
+          }
+        });
+
+        setUploads(mergedUploads);
+
+        // Calculate enhanced stats
+        const totalUploads = mergedUploads.length;
+        const pendingUploads = mergedUploads.filter(upload => 
+          !upload.status || upload.status === 'pending'
+        ).length;
+        const reviewedUploads = mergedUploads.filter(upload => 
+          upload.status === 'approved' || upload.status === 'rejected' || upload.admin_notes
+        ).length;
 
         setStats({
           totalUploads,
-          pendingReviews,
-          reviewedUploads
+          pendingReviews: pendingUploads,
+          reviewedUploads: reviewedUploads
         });
       } catch (error) {
         console.error('Error fetching uploads:', error);
@@ -83,42 +114,7 @@ const FarmerDashboard = () => {
     };
   }, [userProfile?.id]);
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'pending':
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-      case 'reviewed':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'rejected':
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
-    }
-  };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'reviewed':
-        return 'bg-green-100 text-green-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    return new Date(timestamp).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   return (
     <div className="space-y-8">
@@ -141,7 +137,36 @@ const FarmerDashboard = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'dashboard'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('uploads')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'uploads'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            My Uploads
+          </button>
+        </nav>
+      </div>
+
+      {/* Dashboard Tab */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-8">
+          {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardContent className="flex items-center p-6">
@@ -250,62 +275,14 @@ const FarmerDashboard = () => {
         </CardContent>
       </Card>
 
-      {/* Recent Uploads */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <TrendingUp className="h-5 w-5 mr-2" />
-            Recent Uploads
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {uploads.length === 0 ? (
-            <div className="text-center py-8">
-              <Camera className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No uploads yet</h3>
-              <p className="text-gray-600 mb-4">
-                Start by uploading your first crop photo to get expert advice
-              </p>
-              <Button onClick={() => setShowUploadModal(true)}>
-                Upload Your First Photo
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {uploads.slice(0, 5).map((upload) => (
-                <div key={upload.id} className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50">
-                  <img
-                    src={upload.image_url}
-                    alt={upload.description}
-                    className="w-16 h-16 object-cover rounded-lg"
-                  />
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{upload.description}</h4>
-                    <p className="text-sm text-gray-600">Crop: {upload.crop_type}</p>
-                    <p className="text-xs text-gray-500">
-                      Uploaded: {formatDate(upload.created_at)}
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {getStatusIcon(upload.status)}
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(upload.status)}`}>
-                      {upload.status.charAt(0).toUpperCase() + upload.status.slice(1)}
-                    </span>
-                  </div>
-                </div>
-              ))}
 
-              {uploads.length > 5 && (
-                <div className="text-center pt-4">
-                  <Button variant="outline" onClick={() => setShowAllUploads(true)}>
-                    View All Uploads ({uploads.length})
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
+
+      {/* Uploads Tab */}
+      {activeTab === 'uploads' && (
+        <UploadStatus />
+      )}
 
       {/* Upload Modal */}
       {showUploadModal && (
@@ -315,63 +292,7 @@ const FarmerDashboard = () => {
         />
       )}
 
-      {/* All Uploads Modal */}
-      {showAllUploads && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-semibold text-gray-900">All Your Uploads</h2>
-              <button
-                onClick={() => setShowAllUploads(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <XCircle className="h-6 w-6" />
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                {uploads.map((upload) => (
-                  <div key={upload.id} className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50">
-                    <img
-                      src={upload.image_url}
-                      alt={upload.description}
-                      className="w-20 h-20 object-cover rounded-lg"
-                    />
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">{upload.description}</h4>
-                      <p className="text-sm text-gray-600">Crop: {upload.crop_type}</p>
-                      <p className="text-xs text-gray-500">
-                        Uploaded: {formatDate(upload.created_at)}
-                      </p>
-                      {upload.location && (
-                        <p className="text-xs text-gray-500">Location: {upload.location}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {getStatusIcon(upload.status)}
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(upload.status)}`}>
-                        {upload.status.charAt(0).toUpperCase() + upload.status.slice(1)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {uploads.length === 0 && (
-                <div className="text-center py-8">
-                  <Camera className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No uploads yet</h3>
-                  <p className="text-gray-600 mb-4">
-                    Start by uploading your first crop photo to get expert advice
-                  </p>
-                  <Button onClick={() => { setShowAllUploads(false); setShowUploadModal(true); }}>
-                    Upload Your First Photo
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };

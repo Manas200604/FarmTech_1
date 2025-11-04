@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/MinimalAuthContext';
+import { useAuth } from '../contexts/FastAuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -133,7 +133,17 @@ const Register = () => {
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center">
-            <Leaf className="h-12 w-12 text-primary-500" />
+            <img 
+              src="/images/logo.png" 
+              alt="FarmTech Logo" 
+              className="h-12 w-12 object-contain"
+              onError={(e) => {
+                // Fallback to leaf icon if logo fails to load
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'inline-block';
+              }}
+            />
+            <Leaf className="h-12 w-12 text-primary-500" style={{ display: 'none' }} />
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Join FarmTech

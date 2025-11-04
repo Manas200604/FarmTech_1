@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/MinimalAuthContext';
+import { useAuth } from '../contexts/FastAuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -59,7 +59,17 @@ const Login = () => {
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center">
-            <Leaf className="h-12 w-12 text-primary-500" />
+            <img 
+              src="/images/logo.png" 
+              alt="FarmTech Logo" 
+              className="h-12 w-12 object-contain"
+              onError={(e) => {
+                // Fallback to leaf icon if logo fails to load
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'inline-block';
+              }}
+            />
+            <Leaf className="h-12 w-12 text-primary-500" style={{ display: 'none' }} />
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Welcome to FarmTech
@@ -163,24 +173,7 @@ const Login = () => {
           </CardContent>
         </Card>
 
-        {/* Demo Accounts */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="pt-6">
-            <h3 className="text-sm font-medium text-blue-900 mb-3">Demo Accounts</h3>
-            <div className="space-y-3 text-xs text-blue-800">
-              <div className="p-2 bg-blue-100 rounded">
-                <div><strong>👨‍🌾 Farmer Account:</strong></div>
-                <div>Email: {import.meta.env.VITE_DEMO_FARMER_EMAIL}</div>
-                <div>Password: {import.meta.env.VITE_DEMO_FARMER_PASSWORD}</div>
-              </div>
-              <div className="p-2 bg-blue-100 rounded">
-                <div><strong>👨‍💼 Admin Account:</strong></div>
-                <div>Email: {import.meta.env.VITE_DEMO_ADMIN_EMAIL}</div>
-                <div>Password: {import.meta.env.VITE_DEMO_ADMIN_PASSWORD}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/MinimalAuthContext';
+import { useAuth } from '../contexts/FastAuthContext';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -12,9 +12,13 @@ import {
     User,
     Calendar,
     Tag,
-    MessageSquare
+    MessageSquare,
+    Upload,
+    X,
+    Image as ImageIcon
 } from 'lucide-react';
 import { supabase } from '../supabase/client';
+import { mockStorageService } from '../services/mockStorage';
 import toast from 'react-hot-toast';
 
 const Support = () => {
@@ -26,8 +30,11 @@ const Support = () => {
         category: '',
         cropType: '',
         description: '',
-        urgency: 'medium'
+        urgency: 'medium',
+        requiredDate: '',
+        image: null
     });
+    const [imagePreview, setImagePreview] = useState(null);
 
     const categories = [
         'Pesticides & Chemicals',
@@ -98,6 +105,25 @@ const Support = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setFormData(prev => ({ ...prev, image: file }));
+            
+            // Create preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setImagePreview(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const removeImage = () => {
+        setFormData(prev => ({ ...prev, image: null }));
+        setImagePreview(null);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -106,34 +132,92 @@ const Support = () => {
             return;
         }
 
+        if (!formData.requiredDate) {
+            toast.error('Please specify when you need the materials');
+            return;
+        }
+
         try {
+            let imageUrl = null;
+
+            // Handle image upload if provided
+            if (formData.image) {
+                try {
+                    // For development, use the preview image (base64) directly
+                    // This ensures the image is always available
+                    if (imagePreview) {
+                        imageUrl = imagePreview;
+                        console.log('Using image preview as URL for material request:', formData.image.name);
+                    } else {
+                        // Fallback: create base64 from file
+                        const reader = new FileReader();
+                        const base64Promise = new Promise((resolve) => {
+                            reader.onload = (e) => resolve(e.target.result);
+                            reader.readAsDataURL(formData.image);
+                        });
+                        imageUrl = await base64Promise;
+                        console.log('Created base64 image for material request:', formData.image.name);
+                    }
+                } catch (uploadError) {
+                    console.log('Image processing failed:', uploadError);
+                    // Use a placeholder image as last resort
+                    imageUrl = `https://via.placeholder.com/400x300/22c55e/ffffff?text=Material+Request+Image`;
+                }
+            }
+
             const inquiryData = {
                 user_id: userProfile.id,
-                description: `${formData.subject.trim()} - ${formData.description.trim()}`,
+                file_name: formData.image ? formData.image.name : 'Material Request',
+                file_path: `material_requests/${Date.now()}_${formData.subject.replace(/\s+/g, '_')}`,
+                file_size: formData.image ? formData.image.size : 0,
                 crop_type: formData.cropType || 'General',
+                notes: `Subject: ${formData.subject.trim()}\nCategory: ${formData.category}\nRequired Date: ${formData.requiredDate}\nUrgency: ${formData.urgency}\n\nDescription: ${formData.description.trim()}`,
+                public_url: imageUrl,
                 status: 'pending',
                 created_at: new Date().toISOString(),
-                image_url: null // Support requests don't have images
+                // Additional fields for material requests
+                user_name: userProfile.name || userProfile.email?.split('@')[0] || 'Unknown User',
+                user_email: userProfile.email || 'no-email@example.com',
+                request_type: 'material_request',
+                required_date: formData.requiredDate,
+                category: formData.category,
+                urgency: formData.urgency
             };
 
-            const { error } = await supabase
-                .from('uploads')
-                .insert([inquiryData]);
+            // Try database first, fallback to localStorage
+            try {
+                const { error } = await supabase
+                    .from('uploads')
+                    .insert([inquiryData]);
 
-            if (error) throw error;
+                if (error) throw error;
+            } catch (dbError) {
+                console.log('Database insert failed, storing locally:', dbError.message);
+                const localRequests = JSON.parse(localStorage.getItem('farmtech_uploads') || '[]');
+                const requestWithId = {
+                    ...inquiryData,
+                    id: Date.now()
+                };
+                localRequests.push(requestWithId);
+                localStorage.setItem('farmtech_uploads', JSON.stringify(localRequests));
+                console.log('Stored material request locally with image URL:', requestWithId.public_url ? 'Yes' : 'No');
+            }
 
-            toast.success('Your inquiry has been submitted successfully!');
+            toast.success('Your material request has been submitted successfully!');
             setFormData({
                 subject: '',
                 category: '',
                 cropType: '',
                 description: '',
-                urgency: 'medium'
+                urgency: 'medium',
+                requiredDate: '',
+                image: null
             });
+            setImagePreview(null);
             setShowNewInquiry(false);
         } catch (error) {
-            console.error('Error submitting inquiry:', error);
-            toast.error('Failed to submit inquiry. Please try again.');
+            console.error('Error submitting material request:', error);
+            toast.error('Failed to submit request. Please try again.');
         }
     };
 
@@ -276,6 +360,70 @@ const Support = () => {
                                 </div>
                             </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                                        Required Date *
+                                    </label>
+                                    <input
+                                        type="date"
+                                        name="requiredDate"
+                                        value={formData.requiredDate}
+                                        onChange={handleInputChange}
+                                        min={new Date().toISOString().split('T')[0]}
+                                        className="w-full h-10 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        required
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">When do you need these materials?</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                                        Upload Image (Optional)
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleImageChange}
+                                            className="hidden"
+                                            id="material-image"
+                                        />
+                                        <label
+                                            htmlFor="material-image"
+                                            className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
+                                        >
+                                            <Upload className="h-4 w-4" />
+                                            Choose Image
+                                        </label>
+                                        {formData.image && (
+                                            <span className="text-sm text-gray-600">{formData.image.name}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {imagePreview && (
+                                <div className="relative">
+                                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                                        Image Preview
+                                    </label>
+                                    <div className="relative inline-block">
+                                        <img
+                                            src={imagePreview}
+                                            alt="Preview"
+                                            className="w-32 h-32 object-cover rounded border"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={removeImage}
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             <div>
                                 <label className="text-sm font-medium text-gray-700 mb-2 block">
                                     Detailed Description
@@ -329,17 +477,22 @@ const Support = () => {
                                     <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
                                         <div className="flex items-center">
                                             <Tag className="h-4 w-4 mr-1" />
-                                            <span>{inquiry.category}</span>
+                                            <span>{inquiry.category || 'General'}</span>
                                         </div>
-                                        {inquiry.cropType && (
+                                        {inquiry.crop_type && (
                                             <div className="flex items-center">
-                                                <span>🌾 {inquiry.cropType}</span>
+                                                <span>🌾 {inquiry.crop_type}</span>
                                             </div>
                                         )}
                                         <div className="flex items-center">
                                             <Calendar className="h-4 w-4 mr-1" />
-                                            <span>{formatDate(inquiry.createdAt)}</span>
+                                            <span>{new Date(inquiry.created_at).toLocaleDateString()}</span>
                                         </div>
+                                        {inquiry.required_date && (
+                                            <div className="flex items-center">
+                                                <span className="text-orange-600">📅 Needed: {new Date(inquiry.required_date).toLocaleDateString()}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -350,21 +503,48 @@ const Support = () => {
 
                             <div className="space-y-4">
                                 <div>
-                                    <h4 className="font-medium text-gray-900 mb-2">Your Question:</h4>
-                                    <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">{inquiry.description}</p>
+                                    <h4 className="font-medium text-gray-900 mb-2">Your Request:</h4>
+                                    <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">{inquiry.notes || inquiry.description}</p>
                                 </div>
 
-                                {inquiry.adminResponse && (
+                                {inquiry.public_url && (
+                                    <div>
+                                        <h4 className="font-medium text-gray-900 mb-2">Attached Image:</h4>
+                                        <div className="relative inline-block">
+                                            <img
+                                                src={inquiry.public_url}
+                                                alt="Material request image"
+                                                className="w-48 h-48 object-cover rounded border cursor-pointer hover:opacity-90 transition-opacity"
+                                                onClick={() => window.open(inquiry.public_url, '_blank')}
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    e.target.nextSibling.style.display = 'flex';
+                                                }}
+                                            />
+                                            <div 
+                                                className="w-48 h-48 bg-gray-100 rounded border flex items-center justify-center"
+                                                style={{ display: 'none' }}
+                                            >
+                                                <div className="text-center">
+                                                    <ImageIcon className="h-8 w-8 text-gray-400 mx-auto mb-1" />
+                                                    <p className="text-xs text-gray-500">Image not available</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {inquiry.admin_notes && (
                                     <div>
                                         <h4 className="font-medium text-gray-900 mb-2 flex items-center">
                                             <User className="h-4 w-4 mr-2 text-primary-500" />
                                             Expert Response:
                                         </h4>
                                         <div className="bg-primary-50 border-l-4 border-primary-500 p-4 rounded-r-lg">
-                                            <p className="text-gray-800">{inquiry.adminResponse}</p>
-                                            {inquiry.respondedAt && (
+                                            <p className="text-gray-800">{inquiry.admin_notes}</p>
+                                            {inquiry.reviewed_at && (
                                                 <p className="text-sm text-gray-600 mt-2">
-                                                    Responded on: {formatDate(inquiry.respondedAt)}
+                                                    Responded on: {new Date(inquiry.reviewed_at).toLocaleDateString()}
                                                 </p>
                                             )}
                                         </div>
