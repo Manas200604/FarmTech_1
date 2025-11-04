@@ -7,6 +7,10 @@ import { Input } from '../components/ui/Input';
 import SchemeManager from '../components/admin/SchemeManager';
 import ContactManager from '../components/admin/ContactManager';
 import UploadManager from '../components/admin/UploadManager';
+import AnalyticsDashboard from '../components/admin/AnalyticsDashboard';
+import PaymentReviewSystem from '../components/admin/PaymentReviewSystem';
+import EnhancedMaterialsManager from '../components/admin/EnhancedMaterialsManager';
+import SuperAdminControls from '../components/admin/SuperAdminControls';
 import { 
   Users, 
   Upload, 
@@ -19,13 +23,16 @@ import {
   TrendingUp,
   Calendar,
   Shield,
-  AlertTriangle
+  AlertTriangle,
+  ShoppingCart
 } from 'lucide-react';
 import { supabase } from '../supabase/client';
 import toast from 'react-hot-toast';
+import analyticsStorage from '../utils/analyticsStorage';
+import useAnalyticsTracking from '../hooks/useAnalyticsTracking';
 
 const AdminDashboard = () => {
-  const { userProfile, isAdmin } = useAuth();
+  const { userProfile, isAdmin, isSuperAdmin, canManageUsers, canDeleteData, canModifySystem } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -56,6 +63,8 @@ const AdminDashboard = () => {
     pendingReviews: 0,
     totalSchemes: 0
   });
+  const [analyticsSummary, setAnalyticsSummary] = useState(null);
+  const { trackPageView } = useAnalyticsTracking();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedUpload, setSelectedUpload] = useState(null);
@@ -109,6 +118,14 @@ const AdminDashboard = () => {
           pendingReviews: 0, // We don't have upload status in current schema
           totalSchemes: statsData?.total_schemes || totalSchemes || 0
         });
+
+        // Load analytics summary
+        try {
+          const summary = await analyticsStorage.getDashboardSummary();
+          setAnalyticsSummary(summary);
+        } catch (analyticsError) {
+          console.log('Analytics data not available, using default values');
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -132,6 +149,11 @@ const AdminDashboard = () => {
       usersSubscription.unsubscribe();
     };
   }, []);
+
+  // Track page view
+  useEffect(() => {
+    trackPageView('admin-dashboard', { tab: activeTab });
+  }, [trackPageView, activeTab]);
 
   const handleReviewUpload = async (uploadId, status, adminFeedback = '') => {
     try {
@@ -187,11 +209,15 @@ const AdminDashboard = () => {
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: TrendingUp },
+    { id: 'analytics', name: 'Analytics', icon: TrendingUp },
+    { id: 'materials', name: 'Materials', icon: Package },
+    { id: 'payments', name: 'Payments', icon: ShoppingCart },
     { id: 'uploads', name: 'Uploads', icon: Upload },
     { id: 'users', name: 'Users', icon: Users },
     { id: 'schemes', name: 'Manage Schemes', icon: FileText },
     { id: 'contacts', name: 'Manage Contacts', icon: Users },
-    { id: 'content', name: 'Content Overview', icon: Settings }
+    { id: 'content', name: 'Content Overview', icon: Settings },
+    ...(isSuperAdmin() ? [{ id: 'superadmin', name: '👑 Super Admin', icon: Shield }] : [])
   ];
 
   return (
@@ -210,10 +236,46 @@ const AdminDashboard = () => {
             <div className="text-right">
               <p className="text-sm text-primary-100">Logged in as</p>
               <p className="font-medium">{userProfile?.name || userProfile?.email}</p>
+              {isSuperAdmin() && (
+                <p className="text-xs text-yellow-200 font-semibold">🔑 SUPER ADMIN</p>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Admin Privileges Panel */}
+      {isSuperAdmin() && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <Shield className="h-5 w-5 text-yellow-600 mt-0.5 mr-3" />
+            <div>
+              <h3 className="text-sm font-semibold text-yellow-800">Super Administrator Privileges</h3>
+              <p className="text-xs text-yellow-700 mt-1">
+                You have complete system control including:
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-xs text-yellow-700">
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  User Management
+                </div>
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  Data Deletion
+                </div>
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  System Settings
+                </div>
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  Full Override
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Navigation Tabs */}
       <div className="border-b border-gray-200">
@@ -292,6 +354,75 @@ const AdminDashboard = () => {
             </Card>
           </div>
 
+          {/* Enhanced Analytics Cards */}
+          {analyticsSummary && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <div className="flex items-center justify-center w-12 h-12 bg-indigo-100 rounded-lg">
+                    <TrendingUp className="h-6 w-6 text-indigo-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Total Revenue</p>
+                    <p className="text-2xl font-bold text-gray-900">₹{analyticsSummary.totalRevenue.toLocaleString()}</p>
+                    {analyticsSummary.growth?.revenue && (
+                      <p className={`text-sm ${analyticsSummary.growth.revenue >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {analyticsSummary.growth.revenue >= 0 ? '+' : ''}{analyticsSummary.growth.revenue}%
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <div className="flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-lg">
+                    <ShoppingCart className="h-6 w-6 text-emerald-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Total Orders</p>
+                    <p className="text-2xl font-bold text-gray-900">{analyticsSummary.totalOrders}</p>
+                    {analyticsSummary.growth?.orders && (
+                      <p className={`text-sm ${analyticsSummary.growth.orders >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {analyticsSummary.growth.orders >= 0 ? '+' : ''}{analyticsSummary.growth.orders}%
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <div className="flex items-center justify-center w-12 h-12 bg-cyan-100 rounded-lg">
+                    <Users className="h-6 w-6 text-cyan-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Active Users</p>
+                    <p className="text-2xl font-bold text-gray-900">{analyticsSummary.activeUsers}</p>
+                    {analyticsSummary.growth?.users && (
+                      <p className={`text-sm ${analyticsSummary.growth.users >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {analyticsSummary.growth.users >= 0 ? '+' : ''}{analyticsSummary.growth.users}%
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <div className="flex items-center justify-center w-12 h-12 bg-rose-100 rounded-lg">
+                    <TrendingUp className="h-6 w-6 text-rose-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Conversion Rate</p>
+                    <p className="text-2xl font-bold text-gray-900">{analyticsSummary.conversionRate.toFixed(1)}%</p>
+                    <p className="text-sm text-gray-500">Avg Order: ₹{analyticsSummary.averageOrderValue.toFixed(0)}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           {/* Recent Activity */}
           <Card>
             <CardHeader>
@@ -333,6 +464,21 @@ const AdminDashboard = () => {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Analytics Tab */}
+      {activeTab === 'analytics' && (
+        <AnalyticsDashboard />
+      )}
+
+      {/* Materials Tab */}
+      {activeTab === 'materials' && (
+        <EnhancedMaterialsManager />
+      )}
+
+      {/* Payments Tab */}
+      {activeTab === 'payments' && (
+        <PaymentReviewSystem />
       )}
 
       {/* Uploads Tab */}
@@ -529,6 +675,11 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Super Admin Tab */}
+      {activeTab === 'superadmin' && isSuperAdmin() && (
+        <SuperAdminControls />
       )}
     </div>
   );

@@ -64,15 +64,38 @@ export const AuthProvider = ({ children }) => {
     const logout = async () => {
         try {
             setLoading(true);
+            
+            // Check if there's an active session before attempting logout
+            const { data: session } = await supabase.auth.getSession();
+            if (!session.session) {
+                console.warn('No active session found, clearing local state');
+                setCurrentUser(null);
+                setUserProfile(null);
+                toast.success('Successfully logged out!');
+                return;
+            }
+            
             const { error } = await supabase.auth.signOut();
-            if (error) throw error;
+            if (error) {
+                // Handle specific auth errors gracefully
+                if (error.message.includes('Auth session missing') || error.message.includes('session_not_found')) {
+                    console.warn('Session already expired, clearing local state');
+                } else {
+                    console.error('Logout error:', error.message);
+                    toast.error('Logout failed, but clearing local session');
+                }
+            }
 
+            // Always clear local state regardless of API response
             setCurrentUser(null);
             setUserProfile(null);
             toast.success('Successfully logged out!');
         } catch (error) {
-            toast.error(error.message || 'Failed to logout');
-            throw error;
+            console.error('Logout error:', error.message);
+            // Always clear local state even if logout API fails
+            setCurrentUser(null);
+            setUserProfile(null);
+            toast.success('Logged out (session cleared)');
         } finally {
             setLoading(false);
         }
@@ -108,34 +131,81 @@ export const AuthProvider = ({ children }) => {
     };
 
     const isAdmin = () => {
-        return userProfile?.role === 'admin';
+        return userProfile?.role === 'admin' || 
+               userProfile?.isSystemAdmin === true ||
+               userProfile?.email === 'admin@farmtech.com';
+    };
+
+    const isSuperAdmin = () => {
+        return userProfile?.email === 'admin@farmtech.com' ||
+               userProfile?.isSystemAdmin === true;
     };
 
     const isFarmer = () => {
         return userProfile?.role === 'farmer';
     };
 
+    const hasPermission = (permission) => {
+        if (!userProfile) return false;
+        // admin@farmtech.com has ALL permissions
+        if (userProfile.email === 'admin@farmtech.com') return true;
+        if (userProfile.role === 'admin' || userProfile.isSystemAdmin) return true;
+        return userProfile.permissions?.[permission] === true;
+    };
+
+    const canManageUsers = () => {
+        return userProfile?.email === 'admin@farmtech.com' || 
+               userProfile?.isSystemAdmin === true;
+    };
+
+    const canDeleteData = () => {
+        return userProfile?.email === 'admin@farmtech.com' || 
+               userProfile?.isSystemAdmin === true;
+    };
+
+    const canModifySystem = () => {
+        return userProfile?.email === 'admin@farmtech.com';
+    };
+
     useEffect(() => {
         let mounted = true;
 
-        // Simple initialization - no complex profile fetching
+        // Optimized initialization with better error handling
         const initAuth = async () => {
             try {
-                const { data: { session } } = await supabase.auth.getSession();
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    console.warn('Session retrieval error:', error.message);
+                    return;
+                }
 
                 if (session?.user && mounted) {
                     setCurrentUser(session.user);
 
-                    // Simple profile - just use basic info
+                    // Enhanced profile with metadata and proper admin detection
+                    const metadata = session.user.user_metadata || {};
+                    const email = session.user.email;
+                    
+                    // Detect admin users by email or metadata
+                    const isAdminEmail = email.includes('@farmtech.com') || 
+                                       email === 'manas28prabhu@gmail.com' ||
+                                       metadata.role === 'admin';
+                    
+                    const detectedRole = metadata.role || (isAdminEmail ? 'admin' : 'farmer');
+                    
                     setUserProfile({
                         id: session.user.id,
                         email: session.user.email,
-                        name: session.user.user_metadata?.name || session.user.email.split('@')[0],
-                        role: 'farmer' // Default role, can be updated through admin panel
+                        name: metadata.name || session.user.email.split('@')[0],
+                        role: detectedRole,
+                        isSystemAdmin: metadata.isSystemAdmin || false,
+                        isSuperAdmin: metadata.isSuperAdmin || email === 'admin@farmtech.com',
+                        permissions: metadata.permissions || {}
                     });
                 }
             } catch (error) {
-                console.error('Auth init error:', error);
+                console.error('Auth initialization error:', error.message);
             } finally {
                 if (mounted) {
                     setLoading(false);
@@ -181,7 +251,12 @@ export const AuthProvider = ({ children }) => {
         resetPassword,
         updateUserProfile,
         isAdmin,
-        isFarmer
+        isSuperAdmin,
+        isFarmer,
+        hasPermission,
+        canManageUsers,
+        canDeleteData,
+        canModifySystem
     };
 
     // Simple loading screen

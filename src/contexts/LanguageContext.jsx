@@ -126,8 +126,6 @@ const translations = {
     address: 'Address',
     
     // Messages
-    noInternetConnection: 'No internet connection',
-    connectionRestored: 'Connection restored',
     somethingWentWrong: 'Something went wrong',
     tryAgain: 'Try Again',
     refreshPage: 'Refresh Page',
@@ -290,8 +288,6 @@ const translations = {
     contactInfo: 'Contact Information',
     paymentInfo: 'Payment Information',
     submittedAt: 'Submitted At',
-    approvePayment: 'Approve Payment',
-    rejectPayment: 'Reject Payment',
     markCompleted: 'Mark as Completed',
     noOrdersFound: 'No material requests found',
     noOrdersDescription: 'Farmers haven\'t placed any material orders yet',
@@ -312,7 +308,6 @@ const translations = {
     cartEmptyDesc: 'Add some materials to get started with your order',
     selectAll: 'Select All',
     removeSelected: 'Remove Selected',
-    quantity: 'Quantity',
     orderSummary: 'Order Summary',
     deliveryOptions: 'Delivery Options',
     standardDelivery: 'Standard Delivery',
@@ -445,8 +440,6 @@ const translations = {
     address: 'पता',
     
     // Messages
-    noInternetConnection: 'इंटरनेट कनेक्शन नहीं है',
-    connectionRestored: 'कनेक्शन बहाल',
     somethingWentWrong: 'कुछ गलत हुआ',
     tryAgain: 'पुनः प्रयास करें',
     refreshPage: 'पेज रीफ्रेश करें',
@@ -609,8 +602,6 @@ const translations = {
     contactInfo: 'संपर्क जानकारी',
     paymentInfo: 'भुगतान जानकारी',
     submittedAt: 'सबमिट किया गया',
-    approvePayment: 'भुगतान स्वीकृत करें',
-    rejectPayment: 'भुगतान अस्वीकार करें',
     markCompleted: 'पूर्ण के रूप में चिह्नित करें',
     noOrdersFound: 'कोई सामग्री अनुरोध नहीं मिला',
     noOrdersDescription: 'किसानों ने अभी तक कोई सामग्री ऑर्डर नहीं दिया है',
@@ -631,7 +622,6 @@ const translations = {
     cartEmptyDesc: 'अपने ऑर्डर की शुरुआत करने के लिए कुछ सामग्री जोड़ें',
     selectAll: 'सभी चुनें',
     removeSelected: 'चयनित हटाएं',
-    quantity: 'मात्रा',
     orderSummary: 'ऑर्डर सारांश',
     deliveryOptions: 'डिलीवरी विकल्प',
     standardDelivery: 'मानक डिलीवरी',
@@ -764,8 +754,6 @@ const translations = {
     address: 'पत्ता',
     
     // Messages
-    noInternetConnection: 'इंटरनेट कनेक्शन नाही',
-    connectionRestored: 'कनेक्शन पुनर्संचयित',
     somethingWentWrong: 'काहीतरी चूक झाली',
     tryAgain: 'पुन्हा प्रयत्न करा',
     refreshPage: 'पेज रीफ्रेश करा',
@@ -928,8 +916,6 @@ const translations = {
     contactInfo: 'संपर्क माहिती',
     paymentInfo: 'पेमेंट माहिती',
     submittedAt: 'सबमिट केले',
-    approvePayment: 'पेमेंट मंजूर करा',
-    rejectPayment: 'पेमेंट नाकारा',
     markCompleted: 'पूर्ण म्हणून चिन्हांकित करा',
     noOrdersFound: 'कोणत्याही साहित्य विनंत्या सापडल्या नाहीत',
     noOrdersDescription: 'शेतकऱ्यांनी अद्याप कोणतेही साहित्य ऑर्डर दिले नाहीत',
@@ -950,7 +936,6 @@ const translations = {
     cartEmptyDesc: 'तुमच्या ऑर्डरची सुरुवात करण्यासाठी काही साहित्य जोडा',
     selectAll: 'सर्व निवडा',
     removeSelected: 'निवडलेले काढा',
-    quantity: 'प्रमाण',
     orderSummary: 'ऑर्डर सारांश',
     deliveryOptions: 'डिलिव्हरी पर्याय',
     standardDelivery: 'मानक डिलिव्हरी',

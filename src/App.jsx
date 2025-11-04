@@ -9,16 +9,18 @@ import ErrorBoundary from './components/ErrorBoundary';
 import MobileWrapper from './components/mobile/MobileWrapper';
 import Navbar from './components/layout/Navbar';
 import { performanceMonitor } from './utils/performance';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import FarmerDashboard from './pages/FarmerDashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import Schemes from './pages/Schemes';
-import Contacts from './pages/Contacts';
-import Treatments from './pages/Treatments';
-import Support from './pages/Support';
-import Materials from './pages/Materials';
-import Cart from './pages/Cart';
+// Lazy load pages for better performance
+const Login = React.lazy(() => import('./pages/Login'));
+const Register = React.lazy(() => import('./pages/Register'));
+const FarmerDashboard = React.lazy(() => import('./pages/FarmerDashboard'));
+const AdminDashboard = React.lazy(() => import('./pages/NewAdminDashboard'));
+const SimpleAdminDashboard = React.lazy(() => import('./pages/SimpleAdminDashboard'));
+const Schemes = React.lazy(() => import('./pages/Schemes'));
+const Contacts = React.lazy(() => import('./pages/Contacts'));
+const Treatments = React.lazy(() => import('./pages/Treatments'));
+const Support = React.lazy(() => import('./pages/Support'));
+const Materials = React.lazy(() => import('./pages/Materials'));
+const Cart = React.lazy(() => import('./pages/Cart'));
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { currentUser, userProfile } = useAuth();
@@ -81,12 +83,20 @@ function AppContent() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                {userProfile?.role === 'admin' ? <AdminDashboard /> : <FarmerDashboard />}
+                {userProfile?.role === 'admin' ? <SimpleAdminDashboard /> : <FarmerDashboard />}
               </ProtectedRoute>
             }
           />
           <Route
             path="/admin"
+            element={
+              <ProtectedRoute adminOnly>
+                <SimpleAdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin-advanced"
             element={
               <ProtectedRoute adminOnly>
                 <AdminDashboard />
@@ -176,7 +186,16 @@ function App() {
                 }}
               >
                 <AuthProvider>
-                  <AppContent />
+                  <React.Suspense fallback={
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
+                        <p className="text-gray-600">Loading...</p>
+                      </div>
+                    </div>
+                  }>
+                    <AppContent />
+                  </React.Suspense>
                 </AuthProvider>
               </Router>
             </MobileWrapper>

@@ -22,6 +22,26 @@ export class Material {
     this.createdAt = data.createdAt || new Date();
     this.updatedAt = data.updatedAt || new Date();
     this.createdBy = data.createdBy || '';
+    
+    // Enhanced fields for admin management
+    this.priceHistory = data.priceHistory || [];
+    this.lowStockThreshold = data.lowStockThreshold || 10;
+    this.reorderLevel = data.reorderLevel || 20;
+    this.supplier = data.supplier || {
+      name: '',
+      contact: '',
+      email: ''
+    };
+    this.tags = data.tags || [];
+    this.isActive = data.isActive !== undefined ? data.isActive : true;
+    this.seoMetadata = data.seoMetadata || {
+      title: '',
+      description: '',
+      keywords: []
+    };
+    this.salesCount = data.salesCount || 0;
+    this.revenue = data.revenue || 0;
+    this.lastSold = data.lastSold || null;
   }
 
   generateId() {
@@ -80,6 +100,133 @@ export class Material {
   increaseStock(quantity) {
     this.stock += quantity;
     this.updatedAt = new Date();
+  }
+
+  // Update price with history tracking
+  updatePrice(newPrice, reason = '', updatedBy = '') {
+    if (newPrice !== this.price) {
+      // Add to price history
+      this.priceHistory.push({
+        price: this.price,
+        effectiveDate: new Date(),
+        updatedBy: updatedBy,
+        reason: reason
+      });
+      
+      this.price = newPrice;
+      this.updatedAt = new Date();
+    }
+  }
+
+  // Check if stock is low
+  isLowStock() {
+    return this.stock <= this.lowStockThreshold;
+  }
+
+  // Check if reorder is needed
+  needsReorder() {
+    return this.stock <= this.reorderLevel;
+  }
+
+  // Record a sale
+  recordSale(quantity, unitPrice) {
+    this.salesCount += quantity;
+    this.revenue += (quantity * unitPrice);
+    this.lastSold = new Date();
+    this.updatedAt = new Date();
+  }
+
+  // Get price history
+  getPriceHistory() {
+    return [...this.priceHistory].sort((a, b) => new Date(b.effectiveDate) - new Date(a.effectiveDate));
+  }
+
+  // Get current price trend
+  getPriceTrend() {
+    if (this.priceHistory.length < 2) return 'stable';
+    
+    const recent = this.priceHistory[this.priceHistory.length - 1];
+    const previous = this.priceHistory[this.priceHistory.length - 2];
+    
+    if (recent.price > previous.price) return 'increasing';
+    if (recent.price < previous.price) return 'decreasing';
+    return 'stable';
+  }
+
+  // Add tag
+  addTag(tag) {
+    if (tag && !this.tags.includes(tag)) {
+      this.tags.push(tag);
+      this.updatedAt = new Date();
+    }
+  }
+
+  // Remove tag
+  removeTag(tag) {
+    const index = this.tags.indexOf(tag);
+    if (index > -1) {
+      this.tags.splice(index, 1);
+      this.updatedAt = new Date();
+    }
+  }
+
+  // Update supplier information
+  updateSupplier(supplierData) {
+    this.supplier = { ...this.supplier, ...supplierData };
+    this.updatedAt = new Date();
+  }
+
+  // Update SEO metadata
+  updateSEOMetadata(seoData) {
+    this.seoMetadata = { ...this.seoMetadata, ...seoData };
+    this.updatedAt = new Date();
+  }
+
+  // Get popularity score (based on sales and revenue)
+  getPopularityScore() {
+    const salesWeight = 0.6;
+    const revenueWeight = 0.4;
+    
+    // Normalize values (this is a simplified calculation)
+    const salesScore = Math.min(this.salesCount / 100, 1) * salesWeight;
+    const revenueScore = Math.min(this.revenue / 10000, 1) * revenueWeight;
+    
+    return (salesScore + revenueScore) * 100;
+  }
+
+  // Get stock status
+  getStockStatus() {
+    if (this.stock === 0) return 'out_of_stock';
+    if (this.isLowStock()) return 'low_stock';
+    if (this.needsReorder()) return 'reorder_needed';
+    return 'in_stock';
+  }
+
+  // Get stock status display text
+  getStockStatusText(language = 'en') {
+    const statusTexts = {
+      en: {
+        out_of_stock: 'Out of Stock',
+        low_stock: 'Low Stock',
+        reorder_needed: 'Reorder Needed',
+        in_stock: 'In Stock'
+      },
+      hi: {
+        out_of_stock: 'स्टॉक समाप्त',
+        low_stock: 'कम स्टॉक',
+        reorder_needed: 'पुनः ऑर्डर आवश्यक',
+        in_stock: 'स्टॉक में'
+      },
+      mr: {
+        out_of_stock: 'स्टॉक संपला',
+        low_stock: 'कमी स्टॉक',
+        reorder_needed: 'पुन्हा ऑर्डर आवश्यक',
+        in_stock: 'स्टॉकमध्ये'
+      }
+    };
+
+    const status = this.getStockStatus();
+    return statusTexts[language]?.[status] || statusTexts.en[status] || status;
   }
 
   // Get category display name
@@ -151,7 +298,17 @@ export class Material {
       images: this.images,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
-      createdBy: this.createdBy
+      createdBy: this.createdBy,
+      priceHistory: this.priceHistory,
+      lowStockThreshold: this.lowStockThreshold,
+      reorderLevel: this.reorderLevel,
+      supplier: this.supplier,
+      tags: this.tags,
+      isActive: this.isActive,
+      seoMetadata: this.seoMetadata,
+      salesCount: this.salesCount,
+      revenue: this.revenue,
+      lastSold: this.lastSold
     };
   }
 
@@ -178,6 +335,30 @@ export class Material {
 
     if (this.stock < 0) {
       errors.push('Stock cannot be negative');
+    }
+
+    if (this.lowStockThreshold < 0) {
+      errors.push('Low stock threshold cannot be negative');
+    }
+
+    if (this.reorderLevel < 0) {
+      errors.push('Reorder level cannot be negative');
+    }
+
+    if (this.lowStockThreshold > this.reorderLevel) {
+      errors.push('Low stock threshold should be less than or equal to reorder level');
+    }
+
+    if (this.supplier.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.supplier.email)) {
+      errors.push('Invalid supplier email format');
+    }
+
+    if (this.salesCount < 0) {
+      errors.push('Sales count cannot be negative');
+    }
+
+    if (this.revenue < 0) {
+      errors.push('Revenue cannot be negative');
     }
 
     return {

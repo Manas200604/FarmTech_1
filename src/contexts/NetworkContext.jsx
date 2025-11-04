@@ -16,23 +16,7 @@ export const NetworkProvider = ({ children }) => {
   const networkStatus = useNetwork();
   const [wasOffline, setWasOffline] = useState(false);
 
-  useEffect(() => {
-    if (!networkStatus.connected && !wasOffline) {
-      setWasOffline(true);
-      toast.error('No internet connection', {
-        id: 'offline-toast',
-        duration: Infinity,
-        icon: '📡'
-      });
-    } else if (networkStatus.connected && wasOffline) {
-      setWasOffline(false);
-      toast.dismiss('offline-toast');
-      toast.success('Connection restored', {
-        icon: '✅',
-        duration: 3000
-      });
-    }
-  }, [networkStatus.connected, wasOffline]);
+  // Network status monitoring removed - no UI notifications for connectivity
 
   const value = {
     ...networkStatus,

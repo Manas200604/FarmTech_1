@@ -41,7 +41,7 @@ describe('MobileWrapper', () => {
     expect(screen.getByText('Test Content')).toBeInTheDocument()
   })
 
-  it('shows offline banner when disconnected', () => {
+  it('does not show offline banner when disconnected', () => {
     useCapacitor.mockReturnValue({
       isNative: false,
       isAndroid: false,
@@ -59,7 +59,7 @@ describe('MobileWrapper', () => {
       </MobileWrapper>
     )
 
-    expect(screen.getByText('No internet connection')).toBeInTheDocument()
+    expect(screen.queryByText('No internet connection')).not.toBeInTheDocument()
   })
 
   it('applies native-app class when on native platform', () => {

@@ -55,19 +55,7 @@
   display: none;
 }
 
-/* Offline banner */
-.offline-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9999;
-}
 
-/* Adjust main content when offline banner is shown */
-.mobile-wrapper:has(.offline-banner) .container {
-  margin-top: 2rem;
-}
 
 /* Mobile-specific form improvements */
 .native-app input[type="email"],
