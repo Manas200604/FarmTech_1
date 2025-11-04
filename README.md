@@ -1,6 +1,11 @@
-# 🌾 FarmTech - Complete Farming Management System
+# 🌾 FarmTech - Agricultural Management System
 
-A comprehensive React-based farming management application with Android mobile support, built with Vite, Capacitor, and modern web technologies.
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/farmtech/farmtech)
+[![React](https://img.shields.io/badge/React-18.0+-blue.svg)](https://reactjs.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-Backend-green.svg)](https://supabase.com/)
+[![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
+
+A comprehensive agricultural management platform that connects farmers with agricultural experts and administrators through a modern web application with separate farmer and admin interfaces.
 
 ## 📱 **Features**
 

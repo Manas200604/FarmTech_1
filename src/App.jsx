@@ -19,6 +19,7 @@ const ComprehensiveAdminDashboard = React.lazy(() => import('./pages/Comprehensi
 const RedAdminDashboard = React.lazy(() => import('./pages/RedAdminDashboard'));
 const RedAdminAccess = React.lazy(() => import('./components/RedAdminAccess'));
 const AdminLogin = React.lazy(() => import('./components/AdminLogin'));
+const AdminPortal = React.lazy(() => import('./components/AdminPortal'));
 const AdminUploadManager = React.lazy(() => import('./pages/admin/AdminUploadManager'));
 const AdminUserManager = React.lazy(() => import('./pages/admin/AdminUserManager'));
 const AdminSchemeManager = React.lazy(() => import('./pages/admin/AdminSchemeManager'));
@@ -91,7 +92,15 @@ function AppContent() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                {userProfile?.role === 'admin' ? <SimpleAdminDashboard /> : <FarmerDashboard />}
+                <FarmerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/farmer"
+            element={
+              <ProtectedRoute>
+                <FarmerDashboard />
               </ProtectedRoute>
             }
           />
@@ -150,6 +159,10 @@ function AppContent() {
                 <Materials />
               </ProtectedRoute>
             }
+          />
+          <Route
+            path="/admin-portal"
+            element={<AdminPortal />}
           />
           <Route
             path="/admin-login"

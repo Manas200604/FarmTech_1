@@ -169,12 +169,12 @@ const Login = () => {
                   </Button>
                 </Link>
                 
-                <Link to="/admin-login">
+                <Link to="/admin-portal">
                   <Button 
                     variant="outline" 
                     className="w-full border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
                   >
-                    🛡️ Admin Login
+                    🛡️ Admin Portal
                   </Button>
                 </Link>
               </div>
