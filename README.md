@@ -328,4 +328,4 @@ This FarmTech application is production-ready with:
 ## 📄 **License**
 
 This project is licensed under the MIT License - see the LICENSE file for details.#   F a r m T e c h _ 1  
- 
+ # FarmTech_1
