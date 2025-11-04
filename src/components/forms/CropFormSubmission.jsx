@@ -128,8 +128,19 @@ const CropFormSubmission = ({ onClose, onSuccess }) => {
           image_url: formData.cropImages.length > 0 ? formData.cropImages[0] : null
         });
 
-      if (uploadError) {
-        console.error('Error saving to uploads table:', uploadError);
+      // Also save to user_uploads table for farmer history
+      const { error: userUploadError } = await supabase
+        .from('user_uploads')
+        .insert({
+          user_id: userProfile?.id,
+          description: `${formData.description} | Requirements: ${formData.requirements}`,
+          crop_type: formData.cropType,
+          image_url: formData.cropImages.length > 0 ? formData.cropImages[0] : null,
+          status: 'pending'
+        });
+
+      if (uploadError || userUploadError) {
+        console.error('Error saving to database:', uploadError || userUploadError);
         // Still show success since local storage worked
       }
 

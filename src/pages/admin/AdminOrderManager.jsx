@@ -23,29 +23,46 @@ const AdminOrderManager = () => {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      // First, let's check if we have an orders table, if not we'll use users as orders for now
-      const { data, error } = await supabase
-        .from('users')
+      // Try to load from orders table first
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
         .select('*')
-        .eq('role', 'farmer')
-        .order('created_at', { ascending: false });
+        .order('order_date', { ascending: false });
 
-      if (error) throw error;
-      
-      // Transform users into "orders" for demonstration
-      const transformedOrders = data.map(user => ({
-        id: user.id,
-        farmer_name: user.name,
-        farmer_email: user.email,
-        farmer_phone: user.phone,
-        farm_location: user.farm_location,
-        crop_type: user.crop_type,
-        order_date: user.created_at,
-        status: 'active', // Default status
-        order_type: 'farming_service' // Default type
-      }));
+      if (!ordersError && ordersData && ordersData.length > 0) {
+        setOrders(ordersData);
+      } else {
+        // Fallback: load from localStorage if database is empty
+        const localOrders = JSON.parse(localStorage.getItem('farmtech_orders') || '[]');
+        if (localOrders.length > 0) {
+          setOrders(localOrders);
+        } else {
+          // Last fallback: use users as mock orders for demonstration
+          const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('role', 'farmer')
+            .order('created_at', { ascending: false });
 
-      setOrders(transformedOrders || []);
+          if (error) throw error;
+          
+          // Transform users into "orders" for demonstration
+          const transformedOrders = data.map(user => ({
+            id: user.id,
+            farmer_name: user.name,
+            farmer_email: user.email,
+            farmer_phone: user.phone,
+            farm_location: user.farm_location,
+            crop_type: user.crop_type,
+            order_date: user.created_at,
+            status: 'active', // Default status
+            order_type: 'farming_service', // Default type
+            transaction_id: null
+          }));
+
+          setOrders(transformedOrders || []);
+        }
+      }
     } catch (error) {
       console.error('Error loading orders:', error);
       toast.error('Failed to load orders');
@@ -266,6 +283,11 @@ const AdminOrderManager = () => {
                         <p style={{ margin: '0 0 8px 0', color: '#dc2626', fontSize: '14px' }}>
                           <strong>📅 Order Date:</strong> {new Date(order.order_date).toLocaleDateString()} at {new Date(order.order_date).toLocaleTimeString()}
                         </p>
+                        {(order.transaction_id || order.paymentDetails?.transactionId) && (
+                          <p style={{ margin: '0 0 8px 0', color: '#dc2626', fontSize: '14px' }}>
+                            <strong>💳 Transaction ID:</strong> {order.transaction_id || order.paymentDetails?.transactionId}
+                          </p>
+                        )}
                         <p style={{ margin: '0', color: '#7f1d1d', fontSize: '12px' }}>
                           <strong>🆔 Order ID:</strong> {order.id.slice(0, 8)}...
                         </p>

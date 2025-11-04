@@ -60,8 +60,40 @@ export class OrderStorage {
         throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
       }
 
+      // Save to local storage (existing functionality)
       orders.push(newOrder);
       await this.saveOrders(orders);
+
+      // Also save to database for admin panel
+      try {
+        const { supabase } = await import('../supabase/client');
+        const { error: dbError } = await supabase
+          .from('orders')
+          .insert({
+            id: newOrder.id,
+            user_id: newOrder.farmerId,
+            farmer_name: orderData.shippingAddress?.fullName || 'Unknown',
+            farmer_email: orderData.shippingAddress?.email || 'unknown@example.com',
+            farmer_phone: orderData.shippingAddress?.phone || 'N/A',
+            crop_type: orderData.items?.[0]?.productName || 'Mixed Items',
+            farm_location: orderData.shippingAddress?.address || 'Not specified',
+            order_type: orderData.paymentMethod || 'online',
+            order_date: newOrder.createdAt,
+            status: newOrder.status,
+            total_amount: newOrder.totalAmount,
+            transaction_id: newOrder.paymentDetails?.transactionId || null,
+            payment_method: newOrder.paymentMethod,
+            items: JSON.stringify(newOrder.items)
+          });
+
+        if (dbError) {
+          console.error('Error saving order to database:', dbError);
+          // Still return success since local storage worked
+        }
+      } catch (dbError) {
+        console.error('Database save failed, order saved locally:', dbError);
+      }
+
       return newOrder;
     } catch (error) {
       console.error('Error creating order:', error);

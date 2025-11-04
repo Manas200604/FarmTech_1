@@ -215,13 +215,27 @@ const UploadModal = ({ isOpen, onClose }) => {
       };
       
       try {
+        // Save to uploads table for admin review
         const { error: dbError } = await supabase
           .from('uploads')
           .insert([uploadRecord]);
         
-        if (dbError) {
+        // Also save to user_uploads table for farmer history
+        const userUploadRecord = {
+          user_id: userProfile.id,
+          description: formData.description.trim(),
+          crop_type: formData.cropType,
+          image_url: publicUrl,
+          status: 'pending'
+        };
+        
+        const { error: userUploadError } = await supabase
+          .from('user_uploads')
+          .insert([userUploadRecord]);
+        
+        if (dbError || userUploadError) {
           // If database insert fails, store locally for development
-          console.log('Database insert failed, storing locally:', dbError.message);
+          console.log('Database insert failed:', dbError?.message || userUploadError?.message);
           const localUploads = JSON.parse(localStorage.getItem('farmtech_uploads') || '[]');
           localUploads.push({
             ...uploadRecord,
