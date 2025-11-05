@@ -62,6 +62,20 @@
 # VITE_ADMIN_SECRET_CODE - Admin access code (optional)
 # VITE_ADMIN_EMAIL - Admin email (optional)
 
+# SPA (Single Page Application) redirect rules
+# This is the most important part for React Router to work properly
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = false
+  
+# Handle specific API routes if needed (before the catch-all)
+# [[redirects]]
+#   from = "/api/*"
+#   to = "https://your-api-domain.com/api/:splat"
+#   status = 200
+
 # Build processing configuration
 [build.processing]
   skip_processing = false

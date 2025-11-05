@@ -18,7 +18,17 @@ export default defineConfig({
     port: 3000,
     open: true,
     host: '0.0.0.0', // Allow external connections for mobile dev
-    cors: true
+    cors: true,
+    // Enable SPA fallback for development
+    historyApiFallback: {
+      index: '/index.html',
+      rewrites: [
+        { from: /^\/admin/, to: '/index.html' },
+        { from: /^\/dashboard/, to: '/index.html' },
+        { from: /^\/login/, to: '/index.html' },
+        { from: /^\/register/, to: '/index.html' }
+      ]
+    }
   },
   build: {
     outDir: 'dist',
