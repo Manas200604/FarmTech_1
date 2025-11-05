@@ -28,23 +28,103 @@ const SchemeManager = () => {
     government_link: ''
   });
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Utility function to safely parse JSON documents
+  const safeParseDocuments = (documentsField) => {
+    if (!documentsField) return [];
+    
+    // If it's already an array, return it
+    if (Array.isArray(documentsField)) {
+      return documentsField;
+    }
+    
+    // If it's not a string, convert to string first
+    if (typeof documentsField !== 'string') {
+      documentsField = String(documentsField);
+    }
+    
+    try {
+      const parsed = JSON.parse(documentsField);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch (error) {
+      // If it's not valid JSON, treat as plain text and split by lines
+      return documentsField.split('\n').filter(line => line.trim());
+    }
+  };
 
   useEffect(() => {
-    fetchSchemes();
+    // Add error boundary for the initial fetch
+    try {
+      fetchSchemes();
+    } catch (error) {
+      console.error('Error initializing SchemeManager:', error);
+      toast.error('Failed to initialize scheme manager');
+    }
   }, []);
 
   const fetchSchemes = async () => {
     try {
+      setInitialLoading(true);
+      setError(null);
+      
       const { data, error } = await supabase
         .from('schemes')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setSchemes(data || []);
+      
+      // Clean up any corrupted JSON data
+      const cleanedSchemes = (data || []).map(scheme => {
+        try {
+          // Ensure documents field is properly formatted
+          if (scheme.documents) {
+            // If it's already an array, stringify it
+            if (Array.isArray(scheme.documents)) {
+              scheme.documents = JSON.stringify(scheme.documents);
+            } else if (typeof scheme.documents === 'string') {
+              try {
+                // Test if it's valid JSON
+                JSON.parse(scheme.documents);
+              } catch (error) {
+                // Convert plain text to JSON array
+                const docs = scheme.documents.split('\n').filter(line => line.trim());
+                scheme.documents = JSON.stringify(docs);
+                
+                // Optionally update the database to fix the corrupted data
+                supabase
+                  .from('schemes')
+                  .update({ documents: scheme.documents })
+                  .eq('id', scheme.id)
+                  .then(() => console.log(`Fixed corrupted documents for scheme: ${scheme.title}`))
+                  .catch(err => console.warn('Failed to fix corrupted data:', err));
+              }
+            } else {
+              // Convert any other type to JSON array
+              scheme.documents = JSON.stringify([String(scheme.documents)]);
+            }
+          } else {
+            // Ensure documents is never null/undefined
+            scheme.documents = JSON.stringify([]);
+          }
+        } catch (error) {
+          console.warn(`Error processing scheme ${scheme.id}:`, error);
+          // Fallback to empty array
+          scheme.documents = JSON.stringify([]);
+        }
+        return scheme;
+      });
+      
+      setSchemes(cleanedSchemes);
     } catch (error) {
       console.error('Error fetching schemes:', error);
+      setError(error.message);
       toast.error('Failed to fetch schemes');
+      setSchemes([]); // Ensure schemes is always an array
+    } finally {
+      setInitialLoading(false);
     }
   };
 
@@ -91,11 +171,16 @@ const SchemeManager = () => {
 
   const handleEdit = (scheme) => {
     setEditingScheme(scheme);
+    
+    // Use safe parsing for documents
+    const docs = safeParseDocuments(scheme.documents);
+    const documentsText = docs.join('\n');
+    
     setFormData({
       title: scheme.title,
       description: scheme.description,
       eligibility: scheme.eligibility,
-      documents: JSON.parse(scheme.documents || '[]').join('\n'),
+      documents: documentsText,
       government_link: scheme.government_link || ''
     });
     setShowModal(true);
@@ -141,6 +226,31 @@ const SchemeManager = () => {
       day: 'numeric'
     });
   };
+
+  // Show loading state
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading schemes...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+          <h3 className="text-lg font-medium text-red-800 mb-2">Error Loading Schemes</h3>
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button onClick={fetchSchemes}>Try Again</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -220,16 +330,22 @@ const SchemeManager = () => {
                   <p className="text-sm text-gray-600">{scheme.eligibility}</p>
                 </div>
 
-                {JSON.parse(scheme.documents || '[]').length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-1">Required Documents:</h4>
-                    <ul className="text-sm text-gray-600 list-disc list-inside">
-                      {JSON.parse(scheme.documents).map((doc, index) => (
-                        <li key={index}>{doc}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {(() => {
+                  const docs = safeParseDocuments(scheme.documents);
+                  if (docs.length > 0) {
+                    return (
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-1">Required Documents:</h4>
+                        <ul className="text-sm text-gray-600 list-disc list-inside">
+                          {docs.map((doc, index) => (
+                            <li key={index}>{doc}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </CardContent>
           </Card>
