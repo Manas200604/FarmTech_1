@@ -30,51 +30,25 @@ const UploadStatus = () => {
       setLoading(true);
       console.log('Loading uploads for user:', userProfile.id);
       
-      // Try to load from Supabase first
+      // Load from Supabase only (no more localStorage fallback)
       const { data: supabaseUploads, error } = await supabase
         .from('uploads')
         .select('*')
         .eq('user_id', userProfile.id)
         .order('created_at', { ascending: false });
 
-      let allUploads = [];
-
       if (error) {
-        console.log('Supabase error, using localStorage fallback:', error.message);
-      } else {
-        allUploads = supabaseUploads || [];
-        console.log('Loaded from Supabase:', allUploads.length, 'uploads');
+        console.error('Supabase error loading uploads:', error.message);
+        setUploads([]);
+        return;
       }
 
-      // Also load from localStorage (for development mode uploads)
-      const localUploads = JSON.parse(localStorage.getItem('farmtech_uploads') || '[]');
-      console.log('Total local uploads:', localUploads.length);
-      
-      // Filter local uploads for current user and merge
-      const userLocalUploads = localUploads.filter(upload => {
-        console.log('Checking upload user_id:', upload.user_id, 'vs current user:', userProfile.id);
-        return upload.user_id === userProfile.id;
-      });
-      
-      console.log('User local uploads:', userLocalUploads.length);
-
-      // Merge and deduplicate uploads
-      const mergedUploads = [...allUploads];
-      
-      userLocalUploads.forEach(localUpload => {
-        // Add local uploads that aren't already in Supabase
-        if (!allUploads.find(u => u.file_path === localUpload.file_path)) {
-          mergedUploads.push({
-            ...localUpload,
-            source: 'local'
-          });
-        }
-      });
-
-      console.log('Final merged uploads:', mergedUploads.length);
-      setUploads(mergedUploads);
+      const uploads = supabaseUploads || [];
+      console.log('Loaded from Supabase:', uploads.length, 'uploads');
+      setUploads(uploads);
     } catch (error) {
       console.error('Error loading uploads:', error);
+      setUploads([]);
     } finally {
       setLoading(false);
     }
