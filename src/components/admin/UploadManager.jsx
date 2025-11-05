@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/FastAuthContext';
 import { supabase } from '../../supabase/client';
+import { supabaseStorage } from '../../utils/supabaseStorage';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -14,7 +15,8 @@ import {
   MessageSquare,
   Image as ImageIcon,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -29,84 +31,38 @@ const UploadManager = () => {
     admin_notes: ''
   });
 
-  // Load uploads from localStorage and Supabase
+  // Load uploads from Supabase only (no more offline-first)
   const loadUploads = async () => {
     try {
       setLoading(true);
-      console.log('Admin loading all uploads...');
+      console.log('Admin loading all uploads from Supabase...');
       
-      let allUploads = [];
-      let supabaseError = null;
+      const { data: supabaseUploads, error } = await supabase
+        .from('uploads')
+        .select(`
+          *,
+          users!uploads_user_id_fkey(name, email)
+        `)
+        .order('created_at', { ascending: false });
 
-      // Try to load from Supabase first with better error handling
-      try {
-        const { data: supabaseUploads, error } = await supabase
-          .from('uploads')
-          .select(`
-            *,
-            users!uploads_user_id_fkey(name, email)
-          `)
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          supabaseError = error;
-          console.log('Supabase error:', error.message);
-        } else {
-          allUploads = supabaseUploads || [];
-          console.log('Loaded from Supabase:', allUploads.length, 'uploads');
-        }
-      } catch (supabaseException) {
-        supabaseError = supabaseException;
-        console.log('Supabase connection failed:', supabaseException.message);
+      if (error) {
+        console.error('Supabase error:', error.message);
+        toast.error('Failed to load uploads: ' + error.message);
+        setUploads([]);
+        return;
       }
 
-      // Load from localStorage (for development mode uploads or fallback)
-      let localUploads = [];
-      try {
-        const localData = localStorage.getItem('farmtech_uploads');
-        localUploads = localData ? JSON.parse(localData) : [];
-        console.log('Total local uploads found:', localUploads.length);
-      } catch (localError) {
-        console.warn('Failed to load local uploads:', localError.message);
-        localUploads = [];
-      }
-      
-      // Merge and deduplicate uploads
-      const mergedUploads = [...allUploads];
-      
-      localUploads.forEach(localUpload => {
-        try {
-          // Add local uploads that aren't already in Supabase
-          if (!allUploads.find(u => u.file_path === localUpload.file_path)) {
-            console.log('Adding local upload:', localUpload.file_name);
-            mergedUploads.push({
-              ...localUpload,
-              users: { 
-                name: localUpload.user_name || 'Local User', 
-                email: localUpload.user_email || 'unknown@user.com' 
-              },
-              source: 'local'
-            });
-          }
-        } catch (mergeError) {
-          console.warn('Failed to merge local upload:', mergeError.message);
-        }
-      });
+      const uploadsWithUrls = supabaseUploads.map(upload => ({
+        ...upload,
+        public_url: upload.public_url || (upload.storage_path ? supabaseStorage.getPublicUrl(upload.storage_path) : null)
+      }));
 
-      console.log('Final uploads for admin:', mergedUploads.length);
-      setUploads(mergedUploads);
-
-      // Show warning if Supabase failed but we have local data
-      if (supabaseError && localUploads.length > 0) {
-        toast.error('Database connection failed, showing local uploads only');
-      } else if (supabaseError && localUploads.length === 0) {
-        toast.error('Failed to load uploads: ' + supabaseError.message);
-      }
+      console.log('Loaded from Supabase:', uploadsWithUrls.length, 'uploads');
+      setUploads(uploadsWithUrls);
 
     } catch (error) {
       console.error('Critical error loading uploads:', error);
       toast.error('Failed to load uploads: ' + error.message);
-      // Set empty array to prevent further errors
       setUploads([]);
     } finally {
       setLoading(false);
@@ -129,40 +85,36 @@ const UploadManager = () => {
   };
 
   const handleDelete = async (upload) => {
-    if (!window.confirm(`Are you sure you want to delete "${upload.file_name}"? This action cannot be undone.`)) {
+    if (!window.confirm(`Are you sure you want to delete "${upload.file_name || 'this upload'}"? This action cannot be undone.`)) {
       return;
     }
 
     try {
-      // Try to delete from Supabase
-      if (upload.source !== 'local' && upload.id) {
-        const { error } = await supabase
-          .from('uploads')
-          .delete()
-          .eq('id', upload.id);
-
-        if (error) {
-          console.log('Supabase delete failed, removing locally...');
+      // Delete from Supabase Storage if storage path exists
+      if (upload.storage_path) {
+        const deleteResult = await supabaseStorage.deleteFile(upload.storage_path);
+        if (!deleteResult.success) {
+          console.warn('Failed to delete file from storage:', deleteResult.error);
         }
       }
 
-      // Remove from localStorage for local uploads or as fallback
-      const localUploads = JSON.parse(localStorage.getItem('farmtech_uploads') || '[]');
-      const updatedLocalUploads = localUploads.filter(localUpload => 
-        localUpload.file_path !== upload.file_path
-      );
-      localStorage.setItem('farmtech_uploads', JSON.stringify(updatedLocalUploads));
+      // Delete from database
+      const { error } = await supabase
+        .from('uploads')
+        .delete()
+        .eq('id', upload.id);
+
+      if (error) {
+        throw error;
+      }
 
       // Update local state
-      setUploads(prev => prev.filter(u => 
-        u.id !== upload.id && u.file_path !== upload.file_path
-      ));
-
+      setUploads(prev => prev.filter(u => u.id !== upload.id));
       toast.success('Upload deleted successfully!');
 
     } catch (error) {
       console.error('Error deleting upload:', error);
-      toast.error('Failed to delete upload');
+      toast.error('Failed to delete upload: ' + error.message);
     }
   };
 
@@ -182,34 +134,22 @@ const UploadManager = () => {
         status: reviewData.status,
         admin_notes: reviewData.admin_notes.trim(),
         reviewed_at: new Date().toISOString(),
-        reviewed_by: userProfile.id
+        reviewed_by: userProfile?.id || 'admin-env-user'
       };
 
-      // Try to update in Supabase
-      if (selectedUpload.source !== 'local') {
-        const { error } = await supabase
-          .from('uploads')
-          .update(updateData)
-          .eq('id', selectedUpload.id);
+      // Update in Supabase
+      const { error } = await supabase
+        .from('uploads')
+        .update(updateData)
+        .eq('id', selectedUpload.id);
 
-        if (error) {
-          console.log('Supabase update failed, updating locally...');
-        }
+      if (error) {
+        throw error;
       }
-
-      // Update in localStorage for local uploads or as fallback
-      const localUploads = JSON.parse(localStorage.getItem('farmtech_uploads') || '[]');
-      const updatedLocalUploads = localUploads.map(upload => {
-        if (upload.file_path === selectedUpload.file_path) {
-          return { ...upload, ...updateData };
-        }
-        return upload;
-      });
-      localStorage.setItem('farmtech_uploads', JSON.stringify(updatedLocalUploads));
 
       // Update local state
       setUploads(prev => prev.map(upload => {
-        if (upload.id === selectedUpload.id || upload.file_path === selectedUpload.file_path) {
+        if (upload.id === selectedUpload.id) {
           return { ...upload, ...updateData };
         }
         return upload;
@@ -222,7 +162,7 @@ const UploadManager = () => {
 
     } catch (error) {
       console.error('Error updating upload:', error);
-      toast.error('Failed to update upload status');
+      toast.error('Failed to update upload status: ' + error.message);
     }
   };
 
@@ -244,10 +184,15 @@ const UploadManager = () => {
     );
   };
 
-  if (!userProfile || userProfile.role !== 'admin') {
+  const { isAdmin } = useAuth();
+  
+  if (!isAdmin()) {
     return (
       <div className="text-center py-8">
-        <p className="text-gray-500">Access denied. Admin privileges required.</p>
+        <div className="flex flex-col items-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+          <p className="text-gray-500">Access denied. Admin privileges required.</p>
+        </div>
       </div>
     );
   }
@@ -256,7 +201,8 @@ const UploadManager = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Upload Management</h2>
-        <Button onClick={loadUploads} variant="outline" size="sm">
+        <Button onClick={loadUploads} variant="outline" size="sm" className="flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" />
           Refresh
         </Button>
       </div>

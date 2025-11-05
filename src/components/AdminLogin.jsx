@@ -1,190 +1,161 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useAuth } from '../contexts/FastAuthContext';
 import { useNavigate } from 'react-router-dom';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
+import { Shield, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const AdminLogin = ({ onAdminLogin }) => {
-  const [credentials, setCredentials] = useState({
-    email: '',
+const AdminLogin = () => {
+  const { adminLogin, loading } = useAuth();
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    username: '',
     password: ''
   });
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setError('');
+
+    if (!formData.username || !formData.password) {
+      setError('Please enter both username and password');
+      return;
+    }
 
     try {
-      // Check against environment variables
-      const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-      const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;
-
-      if (credentials.email === adminEmail && credentials.password === adminPassword) {
-        // Store admin session
-        sessionStorage.setItem('isAdmin', 'true');
-        sessionStorage.setItem('adminLoginTime', new Date().toISOString());
-        
-        toast.success('Admin login successful!');
-        onAdminLogin(true);
-        navigate('/red-admin');
-      } else {
-        toast.error('Invalid admin credentials');
-      }
+      await adminLogin(formData.username, formData.password);
+      navigate('/admin');
     } catch (error) {
-      console.error('Admin login error:', error);
-      toast.error('Login failed');
-    } finally {
-      setLoading(false);
+      setError(error.message || 'Login failed');
     }
   };
 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear error when user starts typing
+    if (error) setError('');
+  };
+
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: '#f5f5f5',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    }}>
-      <div style={{
-        backgroundColor: 'white',
-        padding: '40px',
-        borderRadius: '12px',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-        width: '100%',
-        maxWidth: '400px'
-      }}>
-        {/* Admin Header */}
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <div style={{
-            backgroundColor: '#dc2626',
-            color: 'white',
-            padding: '15px',
-            borderRadius: '8px',
-            marginBottom: '20px'
-          }}>
-            <h1 style={{ margin: 0, fontSize: '24px' }}>🛡️ ADMIN LOGIN</h1>
-            <p style={{ margin: '5px 0 0 0', opacity: 0.9 }}>
-              FarmTech Administration Portal
-            </p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 px-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="p-3 bg-primary-100 rounded-full">
+              <Shield className="h-8 w-8 text-primary-600" />
+            </div>
           </div>
-        </div>
-
-        {/* Login Form */}
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              fontWeight: '500',
-              color: '#374151'
-            }}>
-              Admin Email
-            </label>
-            <input
-              type="email"
-              value={credentials.email}
-              onChange={(e) => setCredentials({
-                ...credentials,
-                email: e.target.value
-              })}
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '6px',
-                fontSize: '16px',
-                boxSizing: 'border-box'
-              }}
-              placeholder="Enter admin email"
-              required
-            />
-          </div>
-
-          <div style={{ marginBottom: '30px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              fontWeight: '500',
-              color: '#374151'
-            }}>
-              Admin Password
-            </label>
-            <input
-              type="password"
-              value={credentials.password}
-              onChange={(e) => setCredentials({
-                ...credentials,
-                password: e.target.value
-              })}
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '6px',
-                fontSize: '16px',
-                boxSizing: 'border-box'
-              }}
-              placeholder="Enter admin password"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              backgroundColor: loading ? '#9ca3af' : '#dc2626',
-              color: 'white',
-              border: 'none',
-              padding: '15px',
-              borderRadius: '6px',
-              fontSize: '16px',
-              fontWeight: '500',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'background-color 0.2s'
-            }}
-          >
-            {loading ? '🔄 Logging in...' : '🛡️ Login as Admin'}
-          </button>
-        </form>
-
-        {/* Security Notice */}
-        <div style={{
-          marginTop: '20px',
-          padding: '15px',
-          backgroundColor: '#fef3c7',
-          border: '1px solid #f59e0b',
-          borderRadius: '6px'
-        }}>
-          <p style={{
-            margin: 0,
-            fontSize: '14px',
-            color: '#92400e',
-            textAlign: 'center'
-          }}>
-            🔒 Secure admin access with environment-based authentication
+          <CardTitle className="text-2xl font-bold text-gray-900">
+            Admin Access
+          </CardTitle>
+          <p className="text-gray-600 mt-2">
+            Enter your administrator credentials to continue
           </p>
-        </div>
+        </CardHeader>
 
-        {/* Back to App */}
-        <div style={{ textAlign: 'center', marginTop: '20px' }}>
-          <button
-            onClick={() => navigate('/')}
-            style={{
-              backgroundColor: 'transparent',
-              color: '#6b7280',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '14px',
-              textDecoration: 'underline'
-            }}
-          >
-            ← Back to FarmTech App
-          </button>
-        </div>
-      </div>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start">
+                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 mr-2 flex-shrink-0" />
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+                Username
+              </label>
+              <Input
+                id="username"
+                name="username"
+                type="text"
+                value={formData.username}
+                onChange={handleInputChange}
+                placeholder="Enter admin username"
+                className="w-full"
+                disabled={loading}
+                autoComplete="username"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  placeholder="Enter admin password"
+                  className="w-full pr-10"
+                  disabled={loading}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  disabled={loading}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4 text-gray-400" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-gray-400" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || !formData.username || !formData.password}
+            >
+              {loading ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Signing in...
+                </div>
+              ) : (
+                'Sign In as Admin'
+              )}
+            </Button>
+          </form>
+
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <div className="text-center">
+              <button
+                onClick={() => navigate('/')}
+                className="text-sm text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                ← Back to Home
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-start">
+              <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
+              <div className="text-xs text-yellow-700">
+                <p className="font-medium mb-1">Security Notice</p>
+                <p>Admin credentials are configured via environment variables. Contact your system administrator if you need access.</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, isSupabaseAvailable, environmentStatus } from '../supabase/client';
+import { supabase, isSupabaseAvailable } from '../supabase/client';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
@@ -16,6 +16,54 @@ export const AuthProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null);
     const [userProfile, setUserProfile] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [adminSession, setAdminSession] = useState(null);
+
+    // Environment-based admin login
+    const adminLogin = async (username, password) => {
+        try {
+            setLoading(true);
+            
+            // Check against environment variables
+            const envUsername = import.meta.env.VITE_ADMIN_USERNAME;
+            const envPassword = import.meta.env.VITE_ADMIN_PASSWORD;
+            
+            console.log('Admin login attempt:', { username, envUsername: envUsername ? 'set' : 'not set', envPassword: envPassword ? 'set' : 'not set' });
+            
+            if (username === envUsername && password === envPassword) {
+                const adminUser = {
+                    id: 'admin-env-user',
+                    username: username,
+                    role: 'super_admin',
+                    loginTime: new Date().toISOString()
+                };
+                
+                setAdminSession(adminUser);
+                setCurrentUser(adminUser);
+                setUserProfile({
+                    id: 'admin-env-user',
+                    email: 'admin@farmtech.com',
+                    name: 'System Administrator',
+                    role: 'admin',
+                    isSystemAdmin: true,
+                    isSuperAdmin: true,
+                    permissions: { all: true }
+                });
+                
+                // Store admin session in localStorage
+                localStorage.setItem('farmtech_admin_session', JSON.stringify(adminUser));
+                
+                toast.success('Admin login successful!');
+                return { success: true, user: adminUser };
+            } else {
+                throw new Error('Invalid admin credentials');
+            }
+        } catch (error) {
+            toast.error(error.message || 'Admin login failed');
+            throw error;
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const login = async (email, password) => {
         try {
@@ -74,6 +122,16 @@ export const AuthProvider = ({ children }) => {
     const logout = async () => {
         try {
             setLoading(true);
+            
+            // Clear admin session if exists
+            if (adminSession) {
+                localStorage.removeItem('farmtech_admin_session');
+                setAdminSession(null);
+                setCurrentUser(null);
+                setUserProfile(null);
+                toast.success('Admin logged out successfully!');
+                return;
+            }
             
             if (!isSupabaseAvailable()) {
                 // If Supabase is not available, just clear local state
@@ -153,14 +211,15 @@ export const AuthProvider = ({ children }) => {
     };
 
     const isAdmin = () => {
-        return userProfile?.role === 'admin' || 
-               userProfile?.isSystemAdmin === true ||
-               userProfile?.email === 'admin@farmtech.com';
+        return adminSession !== null || 
+               userProfile?.role === 'admin' || 
+               userProfile?.isSystemAdmin === true;
     };
 
     const isSuperAdmin = () => {
-        return userProfile?.email === 'admin@farmtech.com' ||
-               userProfile?.isSystemAdmin === true;
+        return adminSession !== null || 
+               userProfile?.isSystemAdmin === true ||
+               userProfile?.isSuperAdmin === true;
     };
 
     const isFarmer = () => {
@@ -176,17 +235,17 @@ export const AuthProvider = ({ children }) => {
     };
 
     const canManageUsers = () => {
-        return userProfile?.email === 'admin@farmtech.com' || 
+        return adminSession !== null || 
                userProfile?.isSystemAdmin === true;
     };
 
     const canDeleteData = () => {
-        return userProfile?.email === 'admin@farmtech.com' || 
+        return adminSession !== null || 
                userProfile?.isSystemAdmin === true;
     };
 
     const canModifySystem = () => {
-        return userProfile?.email === 'admin@farmtech.com';
+        return adminSession !== null;
     };
 
     useEffect(() => {
@@ -195,6 +254,32 @@ export const AuthProvider = ({ children }) => {
         // Optimized initialization with better error handling
         const initAuth = async () => {
             try {
+                // Check for existing admin session first
+                const storedAdminSession = localStorage.getItem('farmtech_admin_session');
+                if (storedAdminSession) {
+                    try {
+                        const adminUser = JSON.parse(storedAdminSession);
+                        if (mounted) {
+                            setAdminSession(adminUser);
+                            setCurrentUser(adminUser);
+                            setUserProfile({
+                                id: 'admin-env-user',
+                                email: 'admin@farmtech.com',
+                                name: 'System Administrator',
+                                role: 'admin',
+                                isSystemAdmin: true,
+                                isSuperAdmin: true,
+                                permissions: { all: true }
+                            });
+                            setLoading(false);
+                            return;
+                        }
+                    } catch (e) {
+                        console.warn('Invalid admin session, clearing...');
+                        localStorage.removeItem('farmtech_admin_session');
+                    }
+                }
+                
                 // Check if Supabase is available before attempting to get session
                 if (!isSupabaseAvailable()) {
                     console.warn('Supabase is not available, skipping auth initialization');
@@ -292,7 +377,9 @@ export const AuthProvider = ({ children }) => {
         currentUser,
         userProfile,
         loading,
+        adminSession,
         login,
+        adminLogin,
         register,
         logout,
         resetPassword,

@@ -42,35 +42,35 @@ const REQUIRED_ENV_VARS = {
 
 // Optional environment variables that enhance functionality
 const OPTIONAL_ENV_VARS = {
-  VITE_CLOUDINARY_CLOUD_NAME: {
-    description: 'Cloudinary cloud name for image uploads',
-    example: 'your-cloud-name',
-    impact: 'Image upload functionality will be disabled',
+  VITE_SUPABASE_STORAGE_BUCKET: {
+    description: 'Supabase Storage bucket name for file uploads',
+    example: 'uploads',
+    impact: 'Default bucket name "uploads" will be used',
     validator: (value) => {
       if (value && (value.length < 3 || /[^a-zA-Z0-9_-]/.test(value))) {
-        return 'Invalid cloud name format - should contain only letters, numbers, hyphens, and underscores';
+        return 'Invalid bucket name format - should contain only letters, numbers, hyphens, and underscores';
       }
       return null;
     }
   },
-  VITE_CLOUDINARY_API_KEY: {
-    description: 'Cloudinary API key for image uploads',
-    example: '123456789012345',
-    impact: 'Image upload functionality will be disabled',
+  VITE_ADMIN_USERNAME: {
+    description: 'Admin username for environment-based authentication',
+    example: 'admin',
+    impact: 'Admin login functionality will be disabled',
     validator: (value) => {
-      if (value && (!/^\d+$/.test(value) || value.length < 10)) {
-        return 'Invalid API key format - should be numeric and at least 10 digits';
+      if (value && value.length < 3) {
+        return 'Admin username should be at least 3 characters';
       }
       return null;
     }
   },
-  VITE_CLOUDINARY_UPLOAD_PRESET: {
-    description: 'Cloudinary upload preset for secure image uploads',
-    example: 'farmtech_uploads',
-    impact: 'Image upload functionality will be disabled',
+  VITE_ADMIN_PASSWORD: {
+    description: 'Admin password for environment-based authentication',
+    example: 'your-secure-password',
+    impact: 'Admin login functionality will be disabled',
     validator: (value) => {
-      if (value && (value.length < 3 || /[^a-zA-Z0-9_-]/.test(value))) {
-        return 'Invalid upload preset format - should contain only letters, numbers, hyphens, and underscores';
+      if (value && value.length < 8) {
+        return 'Admin password should be at least 8 characters for security';
       }
       return null;
     }
@@ -97,24 +97,14 @@ const OPTIONAL_ENV_VARS = {
       return null;
     }
   },
+
   VITE_ADMIN_SECRET_CODE: {
-    description: 'Secret code for admin access',
+    description: 'Legacy admin secret code (deprecated)',
     example: 'your-secure-admin-code',
-    impact: 'Admin access features may be limited',
+    impact: 'Legacy admin access features may be limited',
     validator: (value) => {
       if (value && value.length < 6) {
         return 'Admin secret code should be at least 6 characters for security';
-      }
-      return null;
-    }
-  },
-  VITE_ADMIN_EMAIL: {
-    description: 'Default admin email address',
-    example: 'admin@yourdomain.com',
-    impact: 'Default admin contact will not be available',
-    validator: (value) => {
-      if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-        return 'Invalid email format';
       }
       return null;
     }
@@ -212,11 +202,10 @@ export function validateEnvironmentVariables() {
       validRequired: Object.keys(REQUIRED_ENV_VARS).length - missingRequired.length,
       totalOptional: Object.keys(OPTIONAL_ENV_VARS).length,
       validOptional: Object.keys(OPTIONAL_ENV_VARS).length - missingOptional.length - invalidOptional.length,
-      hasCloudinaryConfig: !!(import.meta.env.VITE_CLOUDINARY_CLOUD_NAME && 
-                              import.meta.env.VITE_CLOUDINARY_API_KEY && 
-                              import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET),
-      hasAdminConfig: !!(import.meta.env.VITE_ADMIN_SECRET_CODE && 
-                        import.meta.env.VITE_ADMIN_EMAIL)
+      hasStorageConfig: !!(import.meta.env.VITE_SUPABASE_URL && 
+                               import.meta.env.VITE_SUPABASE_ANON_KEY),
+      hasAdminConfig: !!(import.meta.env.VITE_ADMIN_USERNAME && 
+                        import.meta.env.VITE_ADMIN_PASSWORD)
     }
   };
 }
@@ -361,9 +350,9 @@ export function checkFeatureAvailability() {
   
   return {
     database: validation.isValid, // Requires Supabase config
-    imageUploads: validation.summary.hasCloudinaryConfig,
+    imageUploads: validation.summary.hasStorageConfig, // Uses Supabase Storage
     adminFeatures: validation.summary.hasAdminConfig,
-    fullFunctionality: validation.isValid && validation.summary.hasCloudinaryConfig
+    fullFunctionality: validation.isValid && validation.summary.hasStorageConfig && validation.summary.hasAdminConfig
   };
 }
 

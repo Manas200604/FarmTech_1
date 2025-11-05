@@ -1,5 +1,6 @@
 import React from 'react';
-import RobustUploadManagerWrapper from './RobustUploadManager';
+import { useAuth } from '../contexts/FastAuthContext';
+import SupabaseUploadManager from './SupabaseUploadManager';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
 // Create a fallback component for import failures
@@ -50,11 +51,10 @@ const ImportFailureFallback = ({ error, retry }) => (
   </div>
 );
 
-// Lazy load the UploadManager to catch import errors
-const LazyUploadManager = React.lazy(() => 
+// Lazy load the admin UploadManager for admin users
+const LazyAdminUploadManager = React.lazy(() => 
   import('./admin/UploadManager').catch(error => {
-    console.error('Failed to load UploadManager:', error);
-    // Return a fallback component that shows the error
+    console.error('Failed to load Admin UploadManager:', error);
     return {
       default: (props) => <ImportFailureFallback error={error} retry={() => window.location.reload()} {...props} />
     };
@@ -62,19 +62,36 @@ const LazyUploadManager = React.lazy(() =>
 );
 
 const SafeUploadManager = (props) => {
-  return (
-    <RobustUploadManagerWrapper>
+  const { isAdmin } = useAuth();
+
+  // Show admin upload manager for admins, regular upload manager for users
+  if (isAdmin()) {
+    return (
       <React.Suspense 
         fallback={
           <div className="flex items-center justify-center p-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-            <span className="ml-2">Loading Upload Manager...</span>
+            <span className="ml-2">Loading Admin Upload Manager...</span>
           </div>
         }
       >
-        <LazyUploadManager {...props} />
+        <LazyAdminUploadManager {...props} />
       </React.Suspense>
-    </RobustUploadManagerWrapper>
+    );
+  }
+
+  // Regular users get the Supabase upload manager
+  return (
+    <React.Suspense 
+      fallback={
+        <div className="flex items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+          <span className="ml-2">Loading Upload Manager...</span>
+        </div>
+      }
+    >
+      <SupabaseUploadManager {...props} />
+    </React.Suspense>
   );
 };
 

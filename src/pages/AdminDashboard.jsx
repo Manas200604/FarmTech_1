@@ -48,9 +48,14 @@ const AdminDashboard = () => {
             <p className="text-gray-600 mb-4">
               You need administrator privileges to access this page.
             </p>
-            <Button onClick={() => window.history.back()}>
-              Go Back
-            </Button>
+            <div className="space-y-2">
+              <Button onClick={() => navigate('/admin-login')} className="w-full">
+                Admin Login
+              </Button>
+              <Button onClick={() => navigate('/')} variant="outline" className="w-full">
+                Go Home
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

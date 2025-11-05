@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/FastAuthContext';
 import { Button } from '../ui/Button';
 import { X, Upload, Camera, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../../supabase/client';
-import { cloudinaryService } from '../../services/cloudinaryService';
+import { supabaseStorage } from '../../utils/supabaseStorage';
 import toast from 'react-hot-toast';
 
 const UploadModal = ({ isOpen, onClose }) => {
@@ -139,128 +139,56 @@ const UploadModal = ({ isOpen, onClose }) => {
         fileToUpload = await compressImage(selectedFile);
       }
       
-      setUploadProgress(50); // Set progress to 50% during upload
+      setUploadProgress(30);
+      console.log('📤 Uploading to Supabase Storage...');
       
-      let uploadData, publicUrl;
+      // Upload to Supabase Storage
+      const uploadResult = await supabaseStorage.uploadFile(fileToUpload, userProfile.id);
       
-      try {
-        // Try Cloudinary upload first
-        console.log('📤 Uploading to Cloudinary...');
-        const cloudinaryResult = await cloudinaryService.uploadImage(fileToUpload, userProfile.id);
-        
-        if (cloudinaryResult.success) {
-          uploadData = cloudinaryResult.data;
-          publicUrl = uploadData.secure_url;
-          
-          console.log('✅ Cloudinary upload successful:', uploadData.public_id);
-          console.log('🔗 Image URL:', publicUrl);
-          
-          toast.success('Image uploaded to Cloudinary!', {
-            duration: 4000,
-            icon: '☁️'
-          });
-        } else {
-          throw new Error(cloudinaryResult.error);
-        }
-      } catch (error) {
-        // Fallback to base64 if Cloudinary fails
-        console.log('🔧 Cloudinary failed, using base64 fallback...');
-        console.log('Error:', error.message);
-        
-        // Convert to base64 for reliable display
-        const base64Url = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target.result);
-          reader.readAsDataURL(fileToUpload);
-        });
-        
-        uploadData = {
-          public_id: `local_${Date.now()}_${fileToUpload.name}`,
-          bytes: fileToUpload.size,
-          format: fileToUpload.type.split('/')[1],
-          width: 'unknown',
-          height: 'unknown'
-        };
-        publicUrl = base64Url;
-        
-        console.log('✅ Base64 fallback successful');
-        
-        toast.success('Image uploaded successfully! (Local storage)', {
-          duration: 4000,
-          icon: '📸'
-        });
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'Upload failed');
       }
       
-      setUploadProgress(75); // Set progress to 75% after upload
+      setUploadProgress(70);
+      console.log('✅ Supabase Storage upload successful:', uploadResult.data.path);
       
-      // Save upload data to database (try real DB, fallback to local storage)
+      // Save upload record to database
       const uploadRecord = {
         user_id: userProfile.id,
         file_name: fileToUpload.name,
-        file_path: uploadData.public_id, // Cloudinary public ID
-        file_size: uploadData.bytes || fileToUpload.size,
+        file_size: fileToUpload.size,
+        file_type: fileToUpload.type,
+        storage_path: uploadResult.data.storagePath,
+        public_url: uploadResult.data.publicUrl,
+        description: formData.description.trim(),
         crop_type: formData.cropType,
-        notes: formData.description.trim(),
-        public_url: publicUrl,
         status: 'pending',
-        // Add image metadata (Cloudinary or base64)
-        cloudinary_public_id: uploadData.public_id,
-        cloudinary_format: uploadData.format,
-        cloudinary_width: uploadData.width,
-        cloudinary_height: uploadData.height,
-        storage_type: publicUrl.startsWith('data:') ? 'base64' : 'cloudinary',
-        // Add user info for admin display (localStorage fallback)
-        user_name: userProfile.name || userProfile.email?.split('@')[0] || 'Unknown User',
-        user_email: userProfile.email || 'no-email@example.com'
+        created_at: new Date().toISOString()
       };
       
-      try {
-        // Save to uploads table for admin review
-        const { error: dbError } = await supabase
-          .from('uploads')
-          .insert([uploadRecord]);
-        
-        // Also save to user_uploads table for farmer history
-        const userUploadRecord = {
-          user_id: userProfile.id,
-          description: formData.description.trim(),
-          crop_type: formData.cropType,
-          image_url: publicUrl,
-          status: 'pending'
-        };
-        
-        const { error: userUploadError } = await supabase
-          .from('user_uploads')
-          .insert([userUploadRecord]);
-        
-        if (dbError || userUploadError) {
-          // If database insert fails, store locally for development
-          console.log('Database insert failed:', dbError?.message || userUploadError?.message);
-          const localUploads = JSON.parse(localStorage.getItem('farmtech_uploads') || '[]');
-          localUploads.push({
-            ...uploadRecord,
-            id: Date.now(),
-            created_at: new Date().toISOString()
-          });
-          localStorage.setItem('farmtech_uploads', JSON.stringify(localUploads));
-        }
-      } catch (error) {
-        console.log('Using local storage for upload record:', error.message);
-        const localUploads = JSON.parse(localStorage.getItem('farmtech_uploads') || '[]');
-        localUploads.push({
-          ...uploadRecord,
-          id: Date.now(),
-          created_at: new Date().toISOString()
-        });
-        localStorage.setItem('farmtech_uploads', JSON.stringify(localUploads));
+      setUploadProgress(90);
+      
+      // Insert into database
+      const { data: dbResult, error: dbError } = await supabase
+        .from('uploads')
+        .insert([uploadRecord])
+        .select()
+        .single();
+      
+      if (dbError) {
+        // If database insert fails, try to clean up the uploaded file
+        await supabaseStorage.deleteFile(uploadResult.data.storagePath);
+        throw dbError;
       }
       
-      setUploadProgress(100); // Complete
+      setUploadProgress(100);
       
-      // Success message (if not already shown by fallback)
-      if (!publicUrl.includes('placeholder')) {
-        toast.success('Image uploaded successfully!');
-      }
+      toast.success('Image uploaded successfully!', {
+        duration: 4000,
+        icon: '✅'
+      });
+      
+      console.log('✅ Upload completed:', dbResult);
       onClose();
       
       // Reset form
@@ -283,7 +211,7 @@ const UploadModal = ({ isOpen, onClose }) => {
       } else if (error.message?.includes('unauthorized')) {
         toast.error('Upload failed: Please check your permissions and try again.');
       } else {
-        toast.error('Failed to upload image. Please try again.');
+        toast.error(`Failed to upload image: ${error.message}`);
       }
     } finally {
       setUploading(false);

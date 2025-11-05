@@ -15,13 +15,9 @@ import { performanceMonitor } from './utils/performance';
 const Login = React.lazy(() => import('./pages/Login'));
 const Register = React.lazy(() => import('./pages/Register'));
 const FarmerDashboard = React.lazy(() => import('./pages/FarmerDashboard'));
-const AdminDashboard = React.lazy(() => import('./pages/NewAdminDashboard'));
-const SimpleAdminDashboard = React.lazy(() => import('./pages/SimpleAdminDashboard'));
-const ComprehensiveAdminDashboard = React.lazy(() => import('./pages/ComprehensiveAdminDashboard'));
-const RedAdminDashboard = React.lazy(() => import('./pages/RedAdminDashboard'));
-const RedAdminAccess = React.lazy(() => import('./components/RedAdminAccess'));
+const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
 const AdminLogin = React.lazy(() => import('./components/AdminLogin'));
-const AdminPortal = React.lazy(() => import('./components/AdminPortal'));
+const EnvTest = React.lazy(() => import('./components/EnvTest'));
 const AdminUploadManager = React.lazy(() => import('./pages/admin/AdminUploadManager'));
 const AdminUserManager = React.lazy(() => import('./pages/admin/AdminUserManager'));
 const AdminSchemeManager = React.lazy(() => import('./pages/admin/AdminSchemeManager'));
@@ -34,14 +30,14 @@ const Materials = React.lazy(() => import('./pages/Materials'));
 const Cart = React.lazy(() => import('./pages/Cart'));
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, isAdmin } = useAuth();
 
   if (!currentUser) {
     return <Navigate to="/login" />;
   }
 
-  if (adminOnly && userProfile?.role !== 'admin') {
-    return <Navigate to="/dashboard" />;
+  if (adminOnly && !isAdmin()) {
+    return <Navigate to="/admin-login" />;
   }
 
   return children;
@@ -110,14 +106,6 @@ function AppContent() {
             path="/admin"
             element={
               <ProtectedRoute adminOnly>
-                <SimpleAdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin-advanced"
-            element={
-              <ProtectedRoute adminOnly>
                 <AdminDashboard />
               </ProtectedRoute>
             }
@@ -163,24 +151,12 @@ function AppContent() {
             }
           />
           <Route
-            path="/admin-portal"
-            element={<AdminPortal />}
-          />
-          <Route
             path="/admin-login"
-            element={<AdminLogin onAdminLogin={() => {}} />}
+            element={<AdminLogin />}
           />
           <Route
-            path="/admin-dashboard"
-            element={<ComprehensiveAdminDashboard />}
-          />
-          <Route
-            path="/red-admin"
-            element={<RedAdminAccess />}
-          />
-          <Route
-            path="/red-admin-dashboard"
-            element={<RedAdminDashboard />}
+            path="/env-test"
+            element={<EnvTest />}
           />
           <Route
             path="/admin/uploads"
