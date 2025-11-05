@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../supabase/client';
+import { supabase, isSupabaseAvailable, environmentStatus } from '../supabase/client';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
@@ -20,6 +20,11 @@ export const AuthProvider = ({ children }) => {
     const login = async (email, password) => {
         try {
             setLoading(true);
+            
+            if (!isSupabaseAvailable()) {
+                throw new Error('Authentication service is not available. Please check your configuration.');
+            }
+            
             const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
@@ -39,6 +44,11 @@ export const AuthProvider = ({ children }) => {
     const register = async (email, password, userData = {}) => {
         try {
             setLoading(true);
+            
+            if (!isSupabaseAvailable()) {
+                throw new Error('Authentication service is not available. Please check your configuration.');
+            }
+            
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email,
                 password,
@@ -64,6 +74,14 @@ export const AuthProvider = ({ children }) => {
     const logout = async () => {
         try {
             setLoading(true);
+            
+            if (!isSupabaseAvailable()) {
+                // If Supabase is not available, just clear local state
+                setCurrentUser(null);
+                setUserProfile(null);
+                toast.success('Successfully logged out!');
+                return;
+            }
             
             // Check if there's an active session before attempting logout
             const { data: session } = await supabase.auth.getSession();
@@ -103,6 +121,10 @@ export const AuthProvider = ({ children }) => {
 
     const resetPassword = async (email) => {
         try {
+            if (!isSupabaseAvailable()) {
+                throw new Error('Authentication service is not available. Please check your configuration.');
+            }
+            
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: `${window.location.origin}/reset-password`
             });
@@ -173,6 +195,15 @@ export const AuthProvider = ({ children }) => {
         // Optimized initialization with better error handling
         const initAuth = async () => {
             try {
+                // Check if Supabase is available before attempting to get session
+                if (!isSupabaseAvailable()) {
+                    console.warn('Supabase is not available, skipping auth initialization');
+                    if (mounted) {
+                        setLoading(false);
+                    }
+                    return;
+                }
+                
                 const { data: { session }, error } = await supabase.auth.getSession();
                 
                 if (error) {
@@ -215,29 +246,45 @@ export const AuthProvider = ({ children }) => {
 
         initAuth();
 
-        // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (!mounted) return;
+        // Listen for auth changes only if Supabase is available
+        let subscription = null;
+        
+        if (isSupabaseAvailable()) {
+            try {
+                const { data: authSubscription } = supabase.auth.onAuthStateChange((event, session) => {
+                    if (!mounted) return;
 
-            if (session?.user) {
-                setCurrentUser(session.user);
-                setUserProfile({
-                    id: session.user.id,
-                    email: session.user.email,
-                    name: session.user.user_metadata?.name || session.user.email.split('@')[0],
-                    role: 'farmer' // Default role, can be updated through admin panel
+                    if (session?.user) {
+                        setCurrentUser(session.user);
+                        setUserProfile({
+                            id: session.user.id,
+                            email: session.user.email,
+                            name: session.user.user_metadata?.name || session.user.email.split('@')[0],
+                            role: 'farmer' // Default role, can be updated through admin panel
+                        });
+                    } else {
+                        setCurrentUser(null);
+                        setUserProfile(null);
+                    }
+
+                    setLoading(false);
                 });
-            } else {
-                setCurrentUser(null);
-                setUserProfile(null);
+                
+                subscription = authSubscription;
+            } catch (error) {
+                console.error('Failed to set up auth state listener:', error);
+                // If we can't set up the listener, just finish loading
+                if (mounted) {
+                    setLoading(false);
+                }
             }
-
-            setLoading(false);
-        });
+        }
 
         return () => {
             mounted = false;
-            subscription.unsubscribe();
+            if (subscription && typeof subscription.unsubscribe === 'function') {
+                subscription.unsubscribe();
+            }
         };
     }, []);
 

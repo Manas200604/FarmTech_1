@@ -57,13 +57,25 @@ const UploadManager = ({ onClose }) => {
   const loadUploads = () => {
     try {
       setLoading(true);
-      const userUploads = uploadsStorage.getUploadsByUser(userProfile?.id || 'anonymous');
-      const stats = uploadsStorage.getStatistics(userProfile?.id || 'anonymous');
-      setUploads(userUploads);
-      setStatistics(stats);
+      
+      // Check if uploadsStorage is available
+      if (!uploadsStorage) {
+        throw new Error('Upload storage system is not available');
+      }
+
+      const userId = userProfile?.id || 'anonymous';
+      const userUploads = uploadsStorage.getUploadsByUser(userId);
+      const stats = uploadsStorage.getStatistics(userId);
+      
+      setUploads(userUploads || []);
+      setStatistics(stats || {});
+      
     } catch (error) {
       console.error('Error loading uploads:', error);
-      toast.error('Failed to load uploads');
+      toast.error('Failed to load uploads: ' + error.message);
+      // Set safe defaults
+      setUploads([]);
+      setStatistics({});
     } finally {
       setLoading(false);
     }
@@ -86,25 +98,49 @@ const UploadManager = ({ onClose }) => {
   };
 
   const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    try {
+      const file = e.target.files[0];
+      if (!file) return;
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('File size must be less than 10MB');
-      return;
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('File size must be less than 10MB');
+        return;
+      }
+
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error('File type not supported. Please select an image, PDF, or text file.');
+        return;
+      }
+
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          setUploadData(prev => ({
+            ...prev,
+            file: file,
+            fileName: file.name,
+            fileData: e.target.result
+          }));
+        } catch (error) {
+          console.error('Error processing file data:', error);
+          toast.error('Failed to process file data');
+        }
+      };
+
+      reader.onerror = (error) => {
+        console.error('FileReader error:', error);
+        toast.error('Failed to read file');
+      };
+
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error selecting file:', error);
+      toast.error('Failed to select file: ' + error.message);
     }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setUploadData(prev => ({
-        ...prev,
-        file: file,
-        fileName: file.name,
-        fileData: e.target.result
-      }));
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleUpload = async (e) => {
@@ -115,7 +151,17 @@ const UploadManager = ({ onClose }) => {
       return;
     }
 
+    if (!uploadData.fileData) {
+      toast.error('File data is not ready. Please try selecting the file again.');
+      return;
+    }
+
     try {
+      // Check if uploadsStorage is available
+      if (!uploadsStorage || typeof uploadsStorage.addUpload !== 'function') {
+        throw new Error('Upload storage system is not available');
+      }
+
       const upload = uploadsStorage.addUpload({
         fileName: uploadData.fileName || uploadData.file.name,
         fileType: uploadData.file.type,
@@ -130,6 +176,10 @@ const UploadManager = ({ onClose }) => {
         isPublic: uploadData.isPublic
       });
 
+      if (!upload) {
+        throw new Error('Upload failed - no upload object returned');
+      }
+
       toast.success('File uploaded successfully!');
       setShowUploadForm(false);
       setUploadData({
@@ -138,24 +188,38 @@ const UploadManager = ({ onClose }) => {
         category: 'general',
         description: '',
         tags: '',
-        isPublic: false
+        isPublic: false,
+        fileData: null
       });
       loadUploads();
     } catch (error) {
       console.error('Error uploading file:', error);
-      toast.error('Failed to upload file');
+      toast.error('Failed to upload file: ' + error.message);
     }
   };
 
   const handleDeleteUpload = (uploadId) => {
+    if (!uploadId) {
+      toast.error('Invalid upload ID');
+      return;
+    }
+
     if (window.confirm('Are you sure you want to delete this upload?')) {
       try {
-        uploadsStorage.deleteUpload(uploadId, userProfile?.id || 'anonymous');
-        toast.success('Upload deleted successfully');
-        loadUploads();
+        if (!uploadsStorage || typeof uploadsStorage.deleteUpload !== 'function') {
+          throw new Error('Upload storage system is not available');
+        }
+
+        const result = uploadsStorage.deleteUpload(uploadId, userProfile?.id || 'anonymous');
+        if (result) {
+          toast.success('Upload deleted successfully');
+          loadUploads();
+        } else {
+          throw new Error('Delete operation failed');
+        }
       } catch (error) {
         console.error('Error deleting upload:', error);
-        toast.error('Failed to delete upload');
+        toast.error('Failed to delete upload: ' + error.message);
       }
     }
   };
@@ -168,33 +232,58 @@ const UploadManager = ({ onClose }) => {
 
     if (window.confirm(`Are you sure you want to delete ${selectedUploads.length} uploads?`)) {
       try {
-        uploadsStorage.bulkDeleteUploads(selectedUploads, userProfile?.id || 'anonymous');
-        toast.success(`${selectedUploads.length} uploads deleted successfully`);
-        setSelectedUploads([]);
-        loadUploads();
+        if (!uploadsStorage || typeof uploadsStorage.bulkDeleteUploads !== 'function') {
+          throw new Error('Upload storage system is not available');
+        }
+
+        const deletedCount = uploadsStorage.bulkDeleteUploads(selectedUploads, userProfile?.id || 'anonymous');
+        
+        if (deletedCount > 0) {
+          toast.success(`${deletedCount} uploads deleted successfully`);
+          setSelectedUploads([]);
+          loadUploads();
+        } else {
+          toast.warning('No uploads were deleted');
+        }
       } catch (error) {
         console.error('Error deleting uploads:', error);
-        toast.error('Failed to delete uploads');
+        toast.error('Failed to delete uploads: ' + error.message);
       }
     }
   };
 
   const handleDownload = (upload) => {
     try {
+      if (!upload || !upload.fileData) {
+        throw new Error('File data is not available');
+      }
+
+      if (!upload.fileName) {
+        throw new Error('File name is not available');
+      }
+
       // Create download link
       const link = document.createElement('a');
       link.href = upload.fileData;
       link.download = upload.fileName;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
-      // Increment download count
-      uploadsStorage.incrementDownloadCount(upload.id);
+      // Increment download count if storage is available
+      try {
+        if (uploadsStorage && typeof uploadsStorage.incrementDownloadCount === 'function') {
+          uploadsStorage.incrementDownloadCount(upload.id);
+        }
+      } catch (countError) {
+        console.warn('Failed to increment download count:', countError);
+      }
+
       toast.success('File downloaded successfully');
     } catch (error) {
       console.error('Error downloading file:', error);
-      toast.error('Failed to download file');
+      toast.error('Failed to download file: ' + error.message);
     }
   };
 

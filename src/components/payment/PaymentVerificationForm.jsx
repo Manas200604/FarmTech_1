@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import paymentStorage from '../../utils/paymentStorage';
+import RobustImage from '../RobustImage';
 import {
     Upload,
     User,
@@ -143,47 +144,13 @@ const PaymentVerificationForm = ({ orderDetails, totalAmount, onBack, onSuccess 
             {/* QR Code Scanner Image */}
             <div className="bg-blue-50 p-4 rounded-lg mb-6 text-center">
                 <div className="w-48 h-48 mx-auto bg-white rounded-lg border-2 border-dashed border-blue-300 flex items-center justify-center mb-3">
-                    {/* Primary Scanner Image */}
-                    <img 
+                    <RobustImage 
                         src="/images/Scanner.png" 
                         alt="QR Code Scanner"
                         className="w-full h-full object-contain rounded-lg"
-                        onError={(e) => {
-                            console.log('Scanner.png failed, trying scanner.png...');
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                        }}
+                        fallbackClassName="w-full h-full flex flex-col items-center justify-center text-center"
+                        onError={() => console.log('Scanner image failed, showing fallback')}
                     />
-                    {/* Fallback to lowercase scanner.png */}
-                    <img 
-                        src="/images/scanner.png" 
-                        alt="QR Code Scanner"
-                        className="w-full h-full object-contain rounded-lg"
-                        style={{ display: 'none' }}
-                        onError={(e) => {
-                            console.log('scanner.png failed, trying SVG placeholder...');
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                        }}
-                    />
-                    {/* Fallback to SVG placeholder */}
-                    <img 
-                        src="/images/scanner-placeholder.svg" 
-                        alt="QR Code Scanner"
-                        className="w-full h-full object-contain rounded-lg"
-                        style={{ display: 'none' }}
-                        onError={(e) => {
-                            console.log('SVG placeholder failed, showing icon fallback...');
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                        }}
-                    />
-                    {/* Final fallback to icon */}
-                    <div className="text-center" style={{ display: 'none' }}>
-                        <ImageIcon className="h-12 w-12 text-blue-400 mx-auto mb-2" />
-                        <p className="text-sm text-blue-600">QR Code Scanner</p>
-                        <p className="text-xs text-blue-500">Scan to pay ₹{totalAmount.toFixed(2)}</p>
-                    </div>
                 </div>
                 <p className="text-sm text-blue-700">
                     Scan the QR code above to make payment, then fill the form below

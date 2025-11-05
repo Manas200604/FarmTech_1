@@ -1,0 +1,57 @@
+# Netlify _redirects file for SPA routing
+# This file handles client-side routing for the React application
+
+# API proxy redirects (if needed for external APIs)
+# /api/*  https://your-api-domain.com/api/:splat  200
+
+# Handle specific static files and assets
+/favicon.ico  /favicon.ico  200
+/robots.txt   /robots.txt   200
+/manifest.json /manifest.json 200
+
+# Handle static assets in subdirectories
+/assets/*     /assets/:splat     200
+/images/*     /images/:splat     200
+/fonts/*      /fonts/:splat      200
+
+# Handle specific application routes with proper status codes
+/login        /index.html        200
+/register     /index.html        200
+/dashboard    /index.html        200
+/farmer       /index.html        200
+/admin        /index.html        200
+/admin-advanced /index.html      200
+/schemes      /index.html        200
+/contacts     /index.html        200
+/treatments   /index.html        200
+/support      /index.html        200
+/materials    /index.html        200
+/cart         /index.html        200
+/upload       /index.html        200
+
+# Admin routes
+/admin-portal /index.html        200
+/admin-login  /index.html        200
+/admin-dashboard /index.html     200
+/red-admin    /index.html        200
+/red-admin-dashboard /index.html 200
+
+# Admin sub-routes
+/admin/uploads /index.html       200
+/admin/users   /index.html       200
+/admin/schemes /index.html       200
+/admin/orders  /index.html       200
+
+# Catch-all redirect for client-side routing
+# This must be the last rule to handle all other routes
+/*            /index.html        200
+
+# Handle 404 errors by serving the main app
+# The React Router will handle showing appropriate error pages
+/404          /index.html        200
+
+# Security redirects - force HTTPS (optional, Netlify handles this automatically)
+# http://farmtech.netlify.app/*  https://farmtech.netlify.app/:splat  301!
+
+# Handle legacy routes or redirects (if any)
+# /old-route  /new-route  301

@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import SchemeManager from '../components/admin/SchemeManager';
 import ContactManager from '../components/admin/ContactManager';
-import UploadManager from '../components/admin/UploadManager';
+import SafeUploadManager from '../components/SafeUploadManager';
 import AnalyticsDashboard from '../components/admin/AnalyticsDashboard';
 import PaymentReviewSystem from '../components/admin/PaymentReviewSystem';
 import EnhancedMaterialsManager from '../components/admin/EnhancedMaterialsManager';
@@ -24,7 +24,8 @@ import {
   Calendar,
   Shield,
   AlertTriangle,
-  ShoppingCart
+  ShoppingCart,
+  Package
 } from 'lucide-react';
 import { supabase } from '../supabase/client';
 import toast from 'react-hot-toast';
@@ -483,7 +484,7 @@ const AdminDashboard = () => {
 
       {/* Uploads Tab */}
       {activeTab === 'uploads' && (
-        <UploadManager />
+        <SafeUploadManager />
       )}
 
       {/* Users Tab */}

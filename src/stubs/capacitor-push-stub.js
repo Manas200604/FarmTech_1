@@ -5,12 +5,34 @@
 
 export const PushNotifications = {
   register: () => {
-    console.log('PushNotifications.register() called in web environment - not implemented');
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log('PushNotifications.register() called in web environment - using web push API');
+    }
+    
+    // Try to register service worker for web push if available
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      return navigator.serviceWorker.ready
+        .then(() => {
+          if (typeof __DEV__ !== 'undefined' && __DEV__) {
+            console.log('Service worker ready for push notifications');
+          }
+          return Promise.resolve();
+        })
+        .catch(error => {
+          if (typeof __DEV__ !== 'undefined' && __DEV__) {
+            console.warn('Service worker registration failed:', error);
+          }
+          return Promise.resolve();
+        });
+    }
+    
     return Promise.resolve();
   },
   
   requestPermissions: () => {
-    console.log('PushNotifications.requestPermissions() called in web environment');
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log('PushNotifications.requestPermissions() called in web environment');
+    }
     
     // Try to use web Notification API if available
     if ('Notification' in window) {
@@ -25,7 +47,9 @@ export const PushNotifications = {
   },
   
   checkPermissions: () => {
-    console.log('PushNotifications.checkPermissions() called in web environment');
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log('PushNotifications.checkPermissions() called in web environment');
+    }
     
     if ('Notification' in window) {
       return Promise.resolve({
@@ -39,28 +63,49 @@ export const PushNotifications = {
   },
   
   addListener: (eventName, callback) => {
-    console.log(`PushNotifications.addListener('${eventName}') called in web environment - no action taken`);
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log(`PushNotifications.addListener('${eventName}') called in web environment`);
+    }
+    
+    // Handle registration events
+    if (eventName === 'registration') {
+      // Simulate successful registration in web environment
+      setTimeout(() => {
+        callback({
+          value: 'web-push-token-placeholder'
+        });
+      }, 100);
+    }
+    
     return {
       remove: () => {
-        console.log(`PushNotifications listener for '${eventName}' removed in web environment`);
+        if (typeof __DEV__ !== 'undefined' && __DEV__) {
+          console.log(`PushNotifications listener for '${eventName}' removed in web environment`);
+        }
       }
     };
   },
   
   removeAllListeners: () => {
-    console.log('PushNotifications.removeAllListeners() called in web environment - no action taken');
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log('PushNotifications.removeAllListeners() called in web environment - no action taken');
+    }
     return Promise.resolve();
   },
   
   getDeliveredNotifications: () => {
-    console.log('PushNotifications.getDeliveredNotifications() called in web environment');
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log('PushNotifications.getDeliveredNotifications() called in web environment');
+    }
     return Promise.resolve({
       notifications: []
     });
   },
   
   removeDeliveredNotifications: () => {
-    console.log('PushNotifications.removeDeliveredNotifications() called in web environment - no action taken');
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log('PushNotifications.removeDeliveredNotifications() called in web environment - no action taken');
+    }
     return Promise.resolve();
   }
 };

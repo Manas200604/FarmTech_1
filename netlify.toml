@@ -1,0 +1,81 @@
+[build]
+  # Build command optimized for web deployment
+  command = "npm run build"
+  
+  # Publish directory where build artifacts are located
+  publish = "dist"
+  
+  # Set Node.js version for consistent builds
+  environment = { NODE_VERSION = "18" }
+
+[build.environment]
+  # Ensure web platform for Capacitor stubs
+  CAPACITOR_PLATFORM = "web"
+  
+  # Production optimizations
+  NODE_ENV = "production"
+  
+  # Vite build optimizations
+  VITE_BUILD_TARGET = "web"
+
+# Security headers for production deployment
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# Cache static assets for better performance
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Cache HTML files with shorter duration
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+# Environment variable configuration documentation
+# The following environment variables should be set in Netlify dashboard:
+# VITE_SUPABASE_URL - Supabase project URL
+# VITE_SUPABASE_ANON_KEY - Supabase anonymous key
+# VITE_CLOUDINARY_CLOUD_NAME - Cloudinary cloud name
+# VITE_CLOUDINARY_API_KEY - Cloudinary API key
+# VITE_CLOUDINARY_UPLOAD_PRESET - Cloudinary upload preset
+# VITE_APP_NAME - Application name
+# VITE_APP_VERSION - Application version
+# VITE_ADMIN_SECRET_CODE - Admin access code (optional)
+# VITE_ADMIN_EMAIL - Admin email (optional)
+
+# Build processing configuration
+[build.processing]
+  skip_processing = false
+
+[build.processing.css]
+  bundle = true
+  minify = true
+
+[build.processing.js]
+  bundle = true
+  minify = true
+
+[build.processing.html]
+  pretty_urls = true
+
+[build.processing.images]
+  compress = true

@@ -13,7 +13,8 @@ import {
   Calendar,
   MessageSquare,
   Image as ImageIcon,
-  Trash2
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -34,51 +35,79 @@ const UploadManager = () => {
       setLoading(true);
       console.log('Admin loading all uploads...');
       
-      // Try to load from Supabase first
-      const { data: supabaseUploads, error } = await supabase
-        .from('uploads')
-        .select(`
-          *,
-          users!uploads_user_id_fkey(name, email)
-        `)
-        .order('created_at', { ascending: false });
-
       let allUploads = [];
+      let supabaseError = null;
 
-      if (error) {
-        console.log('Supabase error, loading from localStorage fallback:', error.message);
-      } else {
-        allUploads = supabaseUploads || [];
-        console.log('Loaded from Supabase:', allUploads.length, 'uploads');
+      // Try to load from Supabase first with better error handling
+      try {
+        const { data: supabaseUploads, error } = await supabase
+          .from('uploads')
+          .select(`
+            *,
+            users!uploads_user_id_fkey(name, email)
+          `)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          supabaseError = error;
+          console.log('Supabase error:', error.message);
+        } else {
+          allUploads = supabaseUploads || [];
+          console.log('Loaded from Supabase:', allUploads.length, 'uploads');
+        }
+      } catch (supabaseException) {
+        supabaseError = supabaseException;
+        console.log('Supabase connection failed:', supabaseException.message);
       }
 
-      // Also load from localStorage (for development mode uploads)
-      const localUploads = JSON.parse(localStorage.getItem('farmtech_uploads') || '[]');
-      console.log('Total local uploads found:', localUploads.length);
+      // Load from localStorage (for development mode uploads or fallback)
+      let localUploads = [];
+      try {
+        const localData = localStorage.getItem('farmtech_uploads');
+        localUploads = localData ? JSON.parse(localData) : [];
+        console.log('Total local uploads found:', localUploads.length);
+      } catch (localError) {
+        console.warn('Failed to load local uploads:', localError.message);
+        localUploads = [];
+      }
       
       // Merge and deduplicate uploads
       const mergedUploads = [...allUploads];
       
       localUploads.forEach(localUpload => {
-        // Add local uploads that aren't already in Supabase
-        if (!allUploads.find(u => u.file_path === localUpload.file_path)) {
-          console.log('Adding local upload:', localUpload.file_name, 'URL:', localUpload.public_url);
-          mergedUploads.push({
-            ...localUpload,
-            users: { 
-              name: localUpload.user_name || 'Local User', 
-              email: localUpload.user_email || 'unknown@user.com' 
-            },
-            source: 'local'
-          });
+        try {
+          // Add local uploads that aren't already in Supabase
+          if (!allUploads.find(u => u.file_path === localUpload.file_path)) {
+            console.log('Adding local upload:', localUpload.file_name);
+            mergedUploads.push({
+              ...localUpload,
+              users: { 
+                name: localUpload.user_name || 'Local User', 
+                email: localUpload.user_email || 'unknown@user.com' 
+              },
+              source: 'local'
+            });
+          }
+        } catch (mergeError) {
+          console.warn('Failed to merge local upload:', mergeError.message);
         }
       });
 
       console.log('Final uploads for admin:', mergedUploads.length);
       setUploads(mergedUploads);
+
+      // Show warning if Supabase failed but we have local data
+      if (supabaseError && localUploads.length > 0) {
+        toast.error('Database connection failed, showing local uploads only');
+      } else if (supabaseError && localUploads.length === 0) {
+        toast.error('Failed to load uploads: ' + supabaseError.message);
+      }
+
     } catch (error) {
-      console.error('Error loading uploads:', error);
-      toast.error('Failed to load uploads');
+      console.error('Critical error loading uploads:', error);
+      toast.error('Failed to load uploads: ' + error.message);
+      // Set empty array to prevent further errors
+      setUploads([]);
     } finally {
       setLoading(false);
     }

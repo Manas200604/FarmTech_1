@@ -6,6 +6,8 @@ import { NetworkProvider } from './contexts/NetworkContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { CartProvider } from './contexts/CartContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import UploadManagerErrorBoundary from './components/UploadManagerErrorBoundary';
+import EnvironmentValidator from './components/EnvironmentValidator';
 import MobileWrapper from './components/mobile/MobileWrapper';
 import Navbar from './components/layout/Navbar';
 import { performanceMonitor } from './utils/performance';
@@ -182,7 +184,11 @@ function AppContent() {
           />
           <Route
             path="/admin/uploads"
-            element={<AdminUploadManager />}
+            element={
+              <UploadManagerErrorBoundary>
+                <AdminUploadManager />
+              </UploadManagerErrorBoundary>
+            }
           />
           <Route
             path="/admin/users"
@@ -228,33 +234,35 @@ function AppContent() {
 function App() {
   return (
     <ErrorBoundary>
-      <LanguageProvider>
-        <NetworkProvider>
-          <CartProvider>
-            <MobileWrapper>
-              <Router
-                future={{
-                  v7_startTransition: true,
-                  v7_relativeSplatPath: true,
-                }}
-              >
-                <AuthProvider>
-                  <React.Suspense fallback={
-                    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                      <div className="text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
-                        <p className="text-gray-600">Loading...</p>
+      <EnvironmentValidator>
+        <LanguageProvider>
+          <NetworkProvider>
+            <CartProvider>
+              <MobileWrapper>
+                <Router
+                  future={{
+                    v7_startTransition: true,
+                    v7_relativeSplatPath: true,
+                  }}
+                >
+                  <AuthProvider>
+                    <React.Suspense fallback={
+                      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
+                          <p className="text-gray-600">Loading...</p>
+                        </div>
                       </div>
-                    </div>
-                  }>
-                    <AppContent />
-                  </React.Suspense>
-                </AuthProvider>
-              </Router>
-            </MobileWrapper>
-          </CartProvider>
-        </NetworkProvider>
-      </LanguageProvider>
+                    }>
+                      <AppContent />
+                    </React.Suspense>
+                  </AuthProvider>
+                </Router>
+              </MobileWrapper>
+            </CartProvider>
+          </NetworkProvider>
+        </LanguageProvider>
+      </EnvironmentValidator>
     </ErrorBoundary>
   );
 }
